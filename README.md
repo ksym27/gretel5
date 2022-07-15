@@ -1,6 +1,6 @@
-# Gretel
+# Deep避難者分布予測プロジェクト
 
-### オリジナル：https://github.com/jbcdnr/gretel-path-extrapolation<br>
+### Gretel：https://github.com/jbcdnr/gretel-path-extrapolation<br>
 
 ### 修正点
 *   道路の閉塞を考慮する。

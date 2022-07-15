@@ -3,8 +3,10 @@
 ### Gretel：https://github.com/jbcdnr/gretel-path-extrapolation<br>
 
 ### 修正点
+*   データの構造をオリジナルに合わせる。
 *   道路の閉塞を考慮する。
 *   時間を考慮する。（まだ終わってない）
+
 
 ### 設定ファイル
 場所：workspace/deep/deep/deep_nll.txt

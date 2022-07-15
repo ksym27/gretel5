@@ -1,0 +1,77 @@
+
+
+[data]
+
+name = deep-nll
+workspace = workspace
+dataset = deep
+input_directory = deep
+max_trajectory_length = 500
+min_trajectory_length = 12
+extract_coord_features = true
+
+k_closest_nodes = 5
+
+[training]
+
+; can be SGD, RMSprop or Adam
+optimizer = Adam
+
+; can be RMSE, target_only, dot_loss, start_target_only, nll_loss
+loss = nll_loss
+
+; device can be cpu or cuda:0
+device = cpu
+
+lr = .1
+momentum = 0.5
+batch_size = 5
+train_test_ratio = 0.99/0.01
+
+; train and test only on the first trajectory (requires batch_size=1)
+overfit1 = False
+
+shuffle_samples = true
+number_epoch = 1
+seed = 0
+patience = 8
+
+[model]
+number_observations = 6
+self_loop_weight = 0.01
+diffusion_k_hops = 20
+diffusion_hidden_dimension = 1
+parametrized_diffusion = false
+use_shortest_path_distance = false
+
+[model-updated]
+self_loop_deadend_only = true
+diffusion_self_loops = false
+
+rw_max_steps = -1
+rw_expected_steps = true
+rw_edge_weight_see_number_step = false  ; deprecated
+with_interpolation = False
+
+; next, destination, start_to_target
+target_prediction = next
+latent_transformer_see_target = false
+rw_non_backtracking = false
+double_way_diffusion = False
+
+[logging]
+
+compute_baseline = false
+
+[checkpoint]
+enable_checkpointing = True
+checkpoint_directory = chkpt
+chechpoint_every_num_epoch = 5
+restore_from_checkpoint = False
+
+
+[deep]
+execute_deep_process = true
+num_observed_samples = 3
+create_path_file = false
+observed_time_interval = 6

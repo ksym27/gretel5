@@ -18,5 +18,8 @@
 *   lengths.txt: トラジェクトリの長さ
 *   paths.txt : パス（リンク）
 
-### 実行方法
+### 学習方法
 main.py workspace/deep/deep_nll.txt
+
+### 予測方法
+evaluation.py workspace/deep/deep_nll.txt

@@ -389,10 +389,6 @@ def train_epoch(
             observed_times = train_trajectories.times(trajectory_idx)
             blocked_edges = graph.blockage[:, observed_times]
 
-
-
-
-
             diffusion_graph = graph if not config.diffusion_self_loops else graph.add_self_loops()
 
             # モデルによる予測

@@ -1,12 +1,10 @@
 import argparse
-import itertools
-import logging
 import os
 import sys
 import time
 
+import deep
 import numpy as np
-import tensorboardX
 import torch
 from termcolor import colored
 from typing import Optional, List, Callable
@@ -58,13 +56,13 @@ def load_data(
             paths_filename =os.path.join(input_dir, "paths.txt"),
         )
     else:
-        graph, node_id_map, _ = Graph.read_from_files2(
+        graph, node_id_map, _ = Graph.read_from_files_for_deep(
             nodes_filename=os.path.join(input_dir, "nodes.txt"),
             edges_filename=os.path.join(input_dir, "edges.txt"),
             blockage_filename=os.path.join(input_dir, "blockage.csv"),
         )
 
-        trajectories = Trajectories.read_from_files2(
+        trajectories = Trajectories.read_from_files_for_deep(
             lengths_filename=os.path.join(input_dir, "lengths.txt"),
             observations_filename=os.path.join(input_dir, "observations_6sec.txt"),
             num_nodes=graph.n_node,
@@ -72,7 +70,7 @@ def load_data(
             graph = graph,
             paths_filename=os.path.join(input_dir, "paths.txt"),
             output = config.create_path_file,
-            observed_time_interval = config.observed_time_interval
+            obs_time_intervals = config.obs_time_intervals
         )
 
     pairwise_node_features = load_tensor(config.device, input_dir, "pairwise_node_features.pt")
@@ -312,7 +310,7 @@ def create_model(graph: Graph, cross_features: Optional[torch.Tensor], config: C
         + d_edge
         + (d_node if config.latent_transformer_see_target else 0)
         + (2 * d_cross if config.latent_transformer_see_target else 0)
-        + (1 * 1 if config.execute_deep_process else 0)
+        + (2 * config.number_observations if config.execute_deep_process else 0)
     )
     direction_edge_mlp = MLP(d_in_direction_mlp, 1)
 
@@ -358,7 +356,6 @@ def train_epoch(
         for i in range(batch_start, batch_start + config.batch_size):
             trajectory_idx = trajectories_shuffle_indices[i]
             observations = train_trajectories[trajectory_idx]
-            length = train_trajectories.lengths[trajectory_idx]
 
             number_steps = None
             if config.rw_edge_weight_see_number_step or config.rw_expected_steps:
@@ -378,17 +375,12 @@ def train_epoch(
             )
 
             # 間引いたマスクを生成する
-            n_observed = len(observed)
-            n_indices = min(n_observed, config.num_observed_samples)
-            indices = torch.randperm(n_observed)[0:n_indices].sort().values
-            observed = observed[indices, :]
-            starts = starts[indices]
-            targets = targets[indices]
+            observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
 
-            # 観測時間の閉塞データを取得する
-            observed_times = train_trajectories.times(trajectory_idx)
-            blocked_edges = graph.blockage[:, observed_times]
+            # Deep用のデータを準備する
+            blocked_edges, edge_times = deep.prepare_data(train_trajectories, trajectory_idx, graph)
 
+            #
             diffusion_graph = graph if not config.diffusion_self_loops else graph.add_self_loops()
 
             # モデルによる予測
@@ -401,7 +393,8 @@ def train_epoch(
                 targets=targets,
                 pairwise_node_features=pairwise_node_features,
                 number_steps=number_steps,
-                blocked_edges=blocked_edges
+                blocked_edges=blocked_edges,
+                edge_times=edge_times
             )
 
             print_num_preds += starts.shape[0]
@@ -523,10 +516,8 @@ def main():
     optimizer = create_optimizer(model.parameters(), config)
 
     if config.restore_from_checkpoint:
-        #filename = input("Checkpoint file: ")
-        # ksym
-        filename = 'C:/Users/kashiyama/PycharmProjects/gretel3/workspace/chkpt/planar-lr.1-interpolation-nb-nll/0030.pt'
-        checkpoint_data = torch.load(filename)
+        chkpt_file_path = os.path.join(config.workspace, config.checkpoint_directory, config.name, config.chechpoint_file_name)
+        checkpoint_data = torch.load(chkpt_file_path)
         model.load_state_dict(checkpoint_data["model_state_dict"])
         optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
         print("Loaded parameters from checkpoint")
@@ -585,26 +576,26 @@ def main():
         model.train()
         train_epoch(model, graph, optimizer, config, train_trajectories, pairwise_node_features)
 
-        # VALID and TEST metrics computation
-        test_evaluator = evaluate(
-            model,
-            graph,
-            test_trajectories,
-            pairwise_node_features,
-            create_evaluator,
-            dataset="TEST",
-        )
-
-        valid_evaluator = None
-        if use_validation_set:
-            valid_evaluator = evaluate(
-                model,
-                graph,
-                valid_trajectories,
-                pairwise_node_features,
-                create_evaluator,
-                dataset="EVAL",
-            )
+        # # VALID and TEST metrics computation
+        # test_evaluator = evaluate(
+        #     model,
+        #     graph,
+        #     test_trajectories,
+        #     pairwise_node_features,
+        #     create_evaluator,
+        #     dataset="TEST",
+        # )
+        #
+        # valid_evaluator = None
+        # if use_validation_set:
+        #     valid_evaluator = evaluate(
+        #         model,
+        #         graph,
+        #         valid_trajectories,
+        #         pairwise_node_features,
+        #         create_evaluator,
+        #         dataset="EVAL",
+        #     )
 
 
         if config.enable_checkpointing and epoch % config.chechpoint_every_num_epoch == 0:
@@ -622,35 +613,18 @@ def main():
             config_file = os.path.join(directory, "config")
             config.save_to_file(config_file)
 
-            metrics_file = os.path.join(directory, f"{epoch:04d}.txt")
-            with open(metrics_file, "w") as f:
-                f.write(test_evaluator.to_string())
-                if valid_evaluator:
-                    f.write("\n\n=== VALIDATION ==\n\n")
-                    f.write(valid_evaluator.to_string())
+            # metrics_file = os.path.join(directory, f"{epoch:04d}.txt")
+            # with open(metrics_file, "w") as f:
+            #     f.write(test_evaluator.to_string())
+            #     if valid_evaluator:
+            #         f.write("\n\n=== VALIDATION ==\n\n")
+            #         f.write(valid_evaluator.to_string())
 
             print(colored(f"Checkpoint saved in {chkpt_file}", "blue"))
 
-    print(test_evaluator.get_metrics())
-
-    # モデルを使った予測
-    future = evaluate2(
-        model,
-        graph,
-        test_trajectories,
-        0,
-        create_evaluator
-    )
-    # 予測のPrefix
-    for i, x in enumerate(future.observations):
-        print(int(torch.nonzero(x)[0][0]),',')
-
-    # 予測のSurffix
-    with open('./result.csv', 'w') as f:
-        for i, x in enumerate(future.prediction):
-            f.write("{},{}\n".format(i, x))
-
+    # print(test_evaluator.get_metrics())
     print("end")
+
 
 if __name__ == "__main__":
     main()

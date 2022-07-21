@@ -333,8 +333,8 @@ class Trajectories:
         )
 
     @classmethod
-    def read_from_files2(
-        cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename, output, observed_time_interval
+    def read_from_files_for_deep(
+        cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename, output, obs_time_intervals
     ):
 
         # read trajectories lengths
@@ -377,7 +377,7 @@ class Trajectories:
                 obs_indices[i, n] = node_index
                 obs_weights[i, n] = float(elements[2 * n + 1])
 
-                time = float(elements[2 * n + 2]) / observed_time_interval
+                time = float(elements[2 * n + 2]) / obs_time_intervals
                 obs_times[i, n] = int(round(time))
 
                 # if no path file
@@ -418,6 +418,6 @@ class Trajectories:
             indices=obs_indices,
             num_nodes=num_nodes,
             lengths=lengths,
-            traversed_edges = paths,
-            times = obs_times,
+            traversed_edges=paths,
+            times=obs_times,
         )

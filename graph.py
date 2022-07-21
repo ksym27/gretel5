@@ -774,7 +774,7 @@ class Graph:
             n_edge=num_edges)
 
     @classmethod
-    def read_from_files2(cls,
+    def read_from_files_for_deep(cls,
                          nodes_filename: str,
                          edges_filename: str,
                          blockage_filename: str = None):

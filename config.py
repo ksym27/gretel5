@@ -85,7 +85,8 @@ class Config(object):
     num_observed_samples: int = 10
     create_path_file: bool = False
     execute_deep_process: bool = False
-    observed_time_interval: int = 1
+    obs_time_intervals: int = 1
+    chechpoint_file_name : str = "0001.pt"
 
     def load_from_file(self, filename: str):
         """Load configuration fiels from a file

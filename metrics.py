@@ -1,6 +1,7 @@
 from collections import defaultdict, OrderedDict
 
 import torch
+import deep
 from torch_scatter import scatter_max
 from tqdm import tqdm
 from tabulate import tabulate
@@ -156,16 +157,10 @@ class Evaluator:
                 )
 
                 # 間引いたマスクを生成する
-                n_observed = len(observed)
-                n_indices = min(n_observed, config.num_observed_samples)
-                indices = torch.randperm(n_observed)[0:n_indices].sort().values
-                observed = observed[indices, :]
-                starts = starts[indices]
-                targets = targets[indices]
+                observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
 
-                # 観測時間の閉塞データを取得する
-                observed_times = trajectories.times(trajectory_idx)
-                blocked_edges = graph.blockage[:, observed_times]
+                # Deep用のデータを準備する
+                blocked_edges, edge_times = deep.prepare_data(trajectories, trajectory_idx, graph)
 
                 #
                 diffusion_graph = (
@@ -187,7 +182,8 @@ class Evaluator:
                     targets=targets,
                     pairwise_node_features=pairwise_features,
                     number_steps=number_steps,
-                    blocked_edges=blocked_edges
+                    blocked_edges=blocked_edges,
+                    edge_times = edge_times
                 )
 
                 self.update_metrics(

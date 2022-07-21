@@ -74,4 +74,5 @@ restore_from_checkpoint = False
 execute_deep_process = true
 num_observed_samples = 3
 create_path_file = false
-observed_time_interval = 6
+obs_time_intervals = 6
+chechpoint_file_name = 0030.pt 

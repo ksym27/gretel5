@@ -95,6 +95,7 @@ class Model(nn.Module):
         pairwise_node_features,
         number_steps=None,
         blocked_edges=None,
+        edge_times=None
     ):
         # check shapes
         assert observed.shape[0] == starts.shape[0] == targets.shape[0]
@@ -116,6 +117,8 @@ class Model(nn.Module):
             virtual_coords = None
         else:
             # compute diffusions
+            # ネットワークとトラジェクトリから疑似座標を生成する
+            # この計算では、トラジェクトリのサブセットの情報は使わない。
             virtual_coords = self.compute_diffusion(diffusion_graph, observations)
             if self.double_way_diffusion:
                 virtual_coords_reversed = self.compute_diffusion(
@@ -125,7 +128,7 @@ class Model(nn.Module):
 
             # compute rw graph
             rw_graphs = self.compute_rw_weights(
-                virtual_coords, observed, pairwise_node_features, targets, graph, blocked_edges
+                virtual_coords, observed, pairwise_node_features, targets, graph, blocked_edges, edge_times
             )
 
         # random walks
@@ -136,6 +139,9 @@ class Model(nn.Module):
 
         return target_distributions, virtual_coords, rw_weights
 
+    # ネットワークとトラジェクトリから疑似座標を生成する
+    # ネットワークから生成された重みをPathのエッジの始点順に並べたものが疑似座標
+    # したがって、特徴量として時間データを挿入するのは難しいか。
     def compute_diffusion(self, graph, observations) -> torch.Tensor:
         if self.diffusion_self_loops:
             graph = graph.add_self_loops()
@@ -145,12 +151,17 @@ class Model(nn.Module):
         else:
             diffusion_graph = graph.update(edges=torch.ones([graph.n_edge, 1], device=graph.device))
 
+        # エッジの重みをエッジ属性として保持するネットワークのグラフ
         diffusion_graph = diffusion_graph.softmax_weights()
 
         # run the diffusion for each observation
+        # ノード属性にはトラジェクトリ情報を格納する
         diffusion_graph = diffusion_graph.update(
             nodes=observations.t()
         )  # n_node x trajectory_length
+
+        # トラジェクトリと重みから疑似座標を計算する
+        # diffusion_graph: node：トラジェクトを示すフラグ、edge:重み
         virtual_coords = self.multichannel_diffusion(
             diffusion_graph
         )  # n_node x trajectory_length x hidden
@@ -159,7 +170,7 @@ class Model(nn.Module):
 
     ## Network->Graph ?
     def compute_rw_weights(
-        self, virtual_coords, observed, pairwise_node_features, targets, graph: Graph, blocked_edges=None,
+        self, virtual_coords, observed, pairwise_node_features, targets, graph: Graph, blocked_edges, edge_times
     ) -> Graph:
         n_pred = observed.shape[0]
         witness_features = []
@@ -189,16 +200,18 @@ class Model(nn.Module):
         if graph.edges is not None:
             witness_features.append(graph.edges.view(graph.n_edge, 1, -1).repeat(1, n_pred, 1))
 
-        # blocked features
-        if blocked_edges is not None:
-            blocked_edge_features = blocked_edges[:,0].repeat(n_pred,1)
-            blocked_edge_features = blocked_edge_features.t().unsqueeze(2)
-            witness_features.append(blocked_edge_features)
-
         # target features
         # -- n_edge x batch x d_node
         if self.latent_transformer_see_target and pairwise_node_features is not None:
             witness_features.append(graph.nodes[targets].unsqueeze(0).repeat(graph.n_edge, 1, 1))
+
+        # 道路閉塞
+        if blocked_edges is not None:
+            witness_features.append(blocked_edges[:, observed])
+
+        # 時間情報
+        if edge_times is not None:
+            witness_features.append(edge_times[:, observed])
 
         # -- n_edge x (...)
         edge_input = torch.cat(witness_features, dim=2)

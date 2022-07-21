@@ -3,11 +3,10 @@ import os
 import sys
 
 import torch
-from termcolor import colored
 
-from config import Config, config_generator
+from config import Config
 from metrics import Evaluator
-from main import load_tensor, load_data, compute_loss, create_optimizer, create_model, evaluate2
+from main import load_data, create_optimizer, create_model, evaluate2
 
 def main():
     parser = argparse.ArgumentParser()

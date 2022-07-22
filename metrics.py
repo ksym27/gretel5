@@ -135,6 +135,9 @@ class Evaluator:
         self.init_metrics()
         config = self.config
 
+        # 初期のグラフを保管する
+        init_graph = graph
+
         with torch.no_grad():
             for trajectory_idx in tqdm(range(len(trajectories))):
                 observations = trajectories[trajectory_idx]
@@ -158,9 +161,18 @@ class Evaluator:
 
                 # 間引いたマスクを生成する
                 observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
-
                 # Deep用のデータを準備する
+                # graph、init_graphのどちらでもよい
                 blocked_edges, edge_times = deep.prepare_data(trajectories, trajectory_idx, graph)
+
+                # エッジの属性を更新する
+                # トラジェクトリの最初の時間のデータだけを追加する。
+                head_blocked_edges = blocked_edges[:,0].unsqueeze(1)
+                head_edge_times = blocked_edges[:, 0].unsqueeze(1)
+                updated_edges = torch.cat([init_graph.edges,head_blocked_edges, head_edge_times], 1)
+
+                # エッジを更新したGraphを生成する
+                graph = init_graph.update(edges = updated_edges)
 
                 #
                 diffusion_graph = (

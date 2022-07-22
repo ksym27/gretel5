@@ -310,6 +310,7 @@ def create_model(graph: Graph, cross_features: Optional[torch.Tensor], config: C
         + d_edge
         + (d_node if config.latent_transformer_see_target else 0)
         + (2 * d_cross if config.latent_transformer_see_target else 0)
+        # 道路閉塞と時間用の特徴を追加する
         + (2 * config.number_observations if config.execute_deep_process else 0)
     )
     direction_edge_mlp = MLP(d_in_direction_mlp, 1)
@@ -347,6 +348,9 @@ def train_epoch(
     if config.shuffle_samples:
         np.random.shuffle(trajectories_shuffle_indices)
 
+    # 初期のグラフを保管する
+    init_graph = graph
+
     for iteration, batch_start in enumerate(
         range(0, len(trajectories_shuffle_indices) - config.batch_size + 1, config.batch_size)
     ):
@@ -376,9 +380,18 @@ def train_epoch(
 
             # 間引いたマスクを生成する
             observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
-
             # Deep用のデータを準備する
+            # graph、init_graphのどちらでもよい
             blocked_edges, edge_times = deep.prepare_data(train_trajectories, trajectory_idx, graph)
+
+            # エッジの属性を更新する
+            # トラジェクトリの最初の時間のデータだけを追加する。
+            head_blocked_edges = blocked_edges[:, 0].unsqueeze(1)
+            head_edge_times = blocked_edges[:, 0].unsqueeze(1)
+            updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
+
+            # エッジを更新したGraphを生成する
+            graph = init_graph.update(edges=updated_edges)
 
             #
             diffusion_graph = graph if not config.diffusion_self_loops else graph.add_self_loops()

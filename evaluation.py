@@ -4,9 +4,22 @@ import sys
 
 import torch
 
+from typing import Callable
 from config import Config
 from metrics import Evaluator
-from main import load_data, create_optimizer, create_model, evaluate2
+from main import load_data, create_optimizer, create_model, evaluate
+
+
+def evaluate(
+    model,
+    graph,
+    trajectories,
+    trajectory_idx,
+    evaluator_creator: Callable[[], Evaluator]
+) -> Evaluator:
+    model.eval()
+    evaluator = evaluator_creator()
+    return evaluator.test_compute(model, graph, trajectories, trajectory_idx)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -75,7 +88,7 @@ def main():
         print("Done")
 
     # モデルを使った予測
-    future = evaluate2(
+    future = evaluate(
         model,
         graph,
         test_trajectories,

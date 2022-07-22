@@ -467,18 +467,6 @@ def evaluate(
     print(colored(evaluator.to_string(), "red"))
     return evaluator
 
-# ksym
-def evaluate2(
-    model,
-    graph,
-    trajectories,
-    trajectory_idx,
-    evaluator_creator: Callable[[], Evaluator]
-) -> Evaluator:
-    model.eval()
-    evaluator = evaluator_creator()
-    return evaluator.compute2(model, graph, trajectories, trajectory_idx)
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config_file")

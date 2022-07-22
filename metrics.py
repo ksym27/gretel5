@@ -76,7 +76,7 @@ class Evaluator:
             for m in metrics_by_key:
                 self.metrics_by_key[m] = defaultdict(lambda: Metric())
 
-    def compute2(
+    def test_compute(
         self,
         model: Model,
         graph: Graph,
@@ -87,11 +87,10 @@ class Evaluator:
         self.init_metrics()
         config = self.config
 
-        with torch.no_grad():
-            diffusion_graph = (
-                graph if not config.diffusion_self_loops else graph.add_self_loops()
-            )
+        # 初期のグラフを保管する
+        init_graph = graph
 
+        with torch.no_grad():
             observations_ = trajectories[trajectory_idx]
             number_steps_ = trajectories.leg_lengths(trajectory_idx)
 
@@ -102,14 +101,30 @@ class Evaluator:
             n_observed = len(observations)
             history = torch.arange(n_observed, device=config.device)
 
+            # マスクの作成する
             observed = torch.unsqueeze(history, 0)
             starts = torch.unsqueeze(history[-1], 0)
             targets = starts+1
-            ## observation：トラジェクト上における各ステップでのノードの確率[]
-            ## number_steps：トラジェクトリの各ステップにおけるエッジ数
-            ## observed：トラジェクト上における各ステップでのノードの確率[]
-            ## starts：現在地
-            ## targets：予測（NEXT）
+
+            # 間引いたマスクを生成する
+            observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
+            # Deep用のデータを準備する
+            # graph、init_graphのどちらでもよい
+            blocked_edges, edge_times = deep.prepare_data(trajectories, trajectory_idx, graph)
+
+            # エッジの属性を更新する
+            # トラジェクトリの最初の時間のデータだけを追加する。
+            head_blocked_edges = torch.unsqueeze(blocked_edges[:, 0], 1)
+            head_edge_times = torch.unsqueeze(blocked_edges[:, 0], 1)
+            updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
+
+            # エッジを更新したGraphを生成する
+            graph = init_graph.update(edges=updated_edges)
+
+            #
+            diffusion_graph = (
+                graph if not config.diffusion_self_loops else graph.add_self_loops()
+            )
 
             predictions, _, rw_weights = model(
                 observations,

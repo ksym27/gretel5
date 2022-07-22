@@ -310,7 +310,9 @@ def create_model(graph: Graph, cross_features: Optional[torch.Tensor], config: C
         + d_edge
         + (d_node if config.latent_transformer_see_target else 0)
         + (2 * d_cross if config.latent_transformer_see_target else 0)
-        # 道路閉塞と時間用の特徴を追加する
+        # GCNに追加する
+        + (2 if config.execute_deep_process else 0)
+        # MLPに追加する特徴の数
         + (2 * config.number_observations if config.execute_deep_process else 0)
     )
     direction_edge_mlp = MLP(d_in_direction_mlp, 1)
@@ -386,8 +388,8 @@ def train_epoch(
 
             # エッジの属性を更新する
             # トラジェクトリの最初の時間のデータだけを追加する。
-            head_blocked_edges = blocked_edges[:, 0].unsqueeze(1)
-            head_edge_times = blocked_edges[:, 0].unsqueeze(1)
+            head_blocked_edges = torch.unsqueeze(blocked_edges[:, 0], 1)
+            head_edge_times = torch.unsqueeze(blocked_edges[:, 0], 1)
             updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
 
             # エッジを更新したGraphを生成する

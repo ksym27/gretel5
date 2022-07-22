@@ -167,12 +167,12 @@ class Evaluator:
 
                 # エッジの属性を更新する
                 # トラジェクトリの最初の時間のデータだけを追加する。
-                head_blocked_edges = blocked_edges[:,0].unsqueeze(1)
-                head_edge_times = blocked_edges[:, 0].unsqueeze(1)
-                updated_edges = torch.cat([init_graph.edges,head_blocked_edges, head_edge_times], 1)
+                head_blocked_edges = torch.unsqueeze(blocked_edges[:,0], 1)
+                head_edge_times = torch.unsqueeze(blocked_edges[:, 0], 1)
+                updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
 
                 # エッジを更新したGraphを生成する
-                graph = init_graph.update(edges = updated_edges)
+                graph = init_graph.update(edges=updated_edges)
 
                 #
                 diffusion_graph = (
@@ -195,7 +195,7 @@ class Evaluator:
                     pairwise_node_features=pairwise_features,
                     number_steps=number_steps,
                     blocked_edges=blocked_edges,
-                    edge_times = edge_times
+                    edge_times=edge_times
                 )
 
                 self.update_metrics(

@@ -8,6 +8,7 @@ fi
 ENV_NAME=$1
 
 # basic env
+# basic env
 conda create --yes -n $ENV_NAME python=3.7 \
     geopandas \
     jupyterlab \
@@ -15,13 +16,12 @@ conda create --yes -n $ENV_NAME python=3.7 \
     nbconvert \
     networkx \
     notebook \
-    numpy \
+    numpy \y
     osmnx \
     pandas \
     pylint \
     rope \
     scikit-learn \
-    scipy \
     scipy \
     seaborn \
     tabulate \
@@ -33,25 +33,16 @@ conda create --yes -n $ENV_NAME python=3.7 \
 
 source activate $ENV_NAME
 
-# can change the CUDA version for your system
-conda install -y pytorch torchvision cudatoolkit=10.2 -c pytorch
-export CUDA_HOME=/usr/local/cuda-10.2
 
-# PyTorch
-pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+pip install torch-scatter -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+pip install torch-sparse -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+pip install torch-cluster -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+pip install torch-spline-conv -f https://data.pyg.org/whl/torch-1.11.0+cu113.html
+pip install torch-geometric
+pip install pygsp
 
-# PyGSP
-pip install git+https://github.com/epfl-lts2/pygsp
 
-
-# Scatter library for PyTorch
-# if installation fails on macOS
-# see https://rusty1s.github.io/pytorch_geometric/build/html/notes/installation.html#c-cuda-extensions-on-macos
-# pip install git+https://github.com/rusty1s/pytorch_scatter
-# pip install git+https://github.com/rusty1s/pytorch_sparse
-# pip install git+https://github.com/rusty1s/pytorch_cluster
-# pip install git+https://github.com/rusty1s/pytorch_spline_conv
-# pip install git+https://github.com/rusty1s/pytorch_geometric
 
 source deactivate
 

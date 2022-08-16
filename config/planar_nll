@@ -2,8 +2,8 @@
 
 [data]
 
-name = planar-lr.1-interpolation-nb-nll
-workspace = ../workspace
+name = planar-nll
+workspace = ./workspace
 dataset = mesh
 input_directory = planar
 max_trajectory_length = 40

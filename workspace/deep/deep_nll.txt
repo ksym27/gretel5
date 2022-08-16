@@ -21,18 +21,18 @@ optimizer = Adam
 loss = nll_loss
 
 ; device can be cpu or cuda:0
-device = cpu
+device = cuda:0
 
 lr = .1
 momentum = 0.5
 batch_size = 5
-train_test_ratio = 0.99/0.01
+train_test_ratio = 0.8/0.2
 
 ; train and test only on the first trajectory (requires batch_size=1)
 overfit1 = False
 
 shuffle_samples = true
-number_epoch = 1
+number_epoch = 50
 seed = 0
 patience = 8
 
@@ -72,7 +72,7 @@ restore_from_checkpoint = False
 
 [deep]
 execute_deep_process = true
-num_observed_samples = 3
+num_observed_samples = 20
 create_path_file = false
 obs_time_intervals = 6
 chechpoint_file_name = 0030.pt 

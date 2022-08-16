@@ -9,6 +9,7 @@ import torch
 from utils import start_idx_from_lengths
 from utils import numpify
 
+
 class Trajectories:
     """
     Class used to represent trajectories (sequence of distribution/observation on a graph).
@@ -19,14 +20,14 @@ class Trajectories:
     """
 
     def __init__(
-        self,
-        weights: torch.Tensor,
-        indices: torch.Tensor,
-        num_nodes: int,
-        lengths: torch.Tensor,
-        times: torch.Tensor = None,
-        traversed_edges: torch.Tensor = None,
-        pairwise_node_distances: torch.Tensor = None,
+            self,
+            weights: torch.Tensor,
+            indices: torch.Tensor,
+            num_nodes: int,
+            lengths: torch.Tensor,
+            times: torch.Tensor = None,
+            traversed_edges: torch.Tensor = None,
+            pairwise_node_distances: torch.Tensor = None,
     ):
         """Create a new trajectories object, can be masked to have access to only a subset of the dataset
 
@@ -100,9 +101,9 @@ class Trajectories:
         length = self._lengths[item]
         observations = torch.zeros([length, self.num_nodes], device=self.device)
         row = torch.arange(length).unsqueeze(1).repeat(1, self._weights.shape[1])
-        observations[row, self._indices[start : start + length]] = self._weights[
-            start : start + length
-        ]
+        observations[row, self._indices[start: start + length]] = self._weights[
+                                                                  start: start + length
+                                                                  ]
         return observations
 
     @property
@@ -126,8 +127,8 @@ class Trajectories:
         start = self._starts[item]
         length = self._lengths[item]
         times = self._times[
-            start : start + length
-        ]
+                start: start + length
+                ]
         return times.squeeze()
 
     def _mapped_index(self, index):
@@ -143,8 +144,11 @@ class Trajectories:
         item = self._mapped_index(trajectory_id)
         start = self._starts[item] - item  # -1 leg per trajectory
         length = self._lengths[item] - 1
-        traversed_edges = self._traversed_edges[start : start + length]
+        traversed_edges = self._traversed_edges[start: start + length]
         return traversed_edges
+
+    def traversed_edges_by_trajectory(self, trajectory_id: int) -> torch.Tensor:
+        return self._traversed_edges_by_trajectory(trajectory_id)
 
     def traversed_edges(self, trajectory_id, jump=None):
         traversed_edges = self._traversed_edges_by_trajectory(trajectory_id)
@@ -261,7 +265,7 @@ class Trajectories:
 
     @classmethod
     def read_from_files(
-        cls, lengths_filename, observations_filename, paths_filename, num_nodes
+            cls, lengths_filename, observations_filename, paths_filename, num_nodes
     ):
         """
         Read trajectories from files `lengths.txt` `observations.txt` and `paths.txt`
@@ -334,7 +338,8 @@ class Trajectories:
 
     @classmethod
     def read_from_files_for_deep(
-        cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename, output, obs_time_intervals
+            cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename, output,
+            obs_time_intervals
     ):
 
         # read trajectories lengths
@@ -348,7 +353,7 @@ class Trajectories:
 
         # create NetworkX graph
         attr = list(enumerate(numpify(graph.edges[:, 0])))
-        attr_dict = [{'id': i, 'weight': j} for i,j in attr]
+        attr_dict = [{'id': i, 'weight': j} for i, j in attr]
         nx_graph = nx.DiGraph()
         nx_graph.add_edges_from(zip(numpify(graph.senders), numpify(graph.receivers), attr_dict))
         nx_graph.add_nodes_from(range(graph.n_node))
@@ -388,7 +393,8 @@ class Trajectories:
                     n_path_nodes = len(path_nodes)
                     edges = None
                     if n_path_nodes > 1:
-                        edges = [nx_graph.get_edge_data(path_nodes[i-1], path_nodes[i])['id'] for i in range(1, n_path_nodes)]
+                        edges = [nx_graph.get_edge_data(path_nodes[i - 1], path_nodes[i])['id'] for i in
+                                 range(1, n_path_nodes)]
                     else:
                         edges = [nx_graph.get_edge_data(path_nodes[0], path_nodes[0])['id']]
                     paths.append(edges)

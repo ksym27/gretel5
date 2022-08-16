@@ -106,7 +106,7 @@ class Evaluator:
             starts = torch.unsqueeze(history[-1], 0)
             targets = starts+1
 
-            # 間引いたマスクを生成する
+            # # 間引いたマスクを生成する
             observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
             # Deep用のデータを準備する
             # graph、init_graphのどちらでもよい

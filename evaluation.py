@@ -11,15 +11,16 @@ from main import load_data, create_optimizer, create_model, evaluate
 
 
 def evaluate(
-    model,
-    graph,
-    trajectories,
-    trajectory_idx,
-    evaluator_creator: Callable[[], Evaluator]
+        model,
+        graph,
+        trajectories,
+        trajectory_idx,
+        evaluator_creator: Callable[[], Evaluator]
 ) -> Evaluator:
     model.eval()
     evaluator = evaluator_creator()
     return evaluator.test_compute(model, graph, trajectories, trajectory_idx)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -63,8 +64,8 @@ def main():
 
     optimizer = create_optimizer(model.parameters(), config)
 
-    # ここはオプション化する必要がある。
-    filename = 'C:/Users/kashiyama/PycharmProjects/gretel3/workspace/chkpt/planar-lr.1-interpolation-nb-nll/0030.pt'
+    input_dir = os.path.join(config.workspace, config.input_directory)
+    filename = os.path.join(input_dir, config.chechpoint_file_name)
     checkpoint_data = torch.load(filename)
     model.load_state_dict(checkpoint_data["model_state_dict"])
     optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
@@ -97,7 +98,7 @@ def main():
     )
     # 予測のPrefix
     for i, x in enumerate(future.observations):
-        print(int(torch.nonzero(x)[0][0]),',')
+        print(int(torch.nonzero(x)[0][0]), ',')
 
     # 予測のSurffix
     with open('./result.csv', 'w') as f:
@@ -105,6 +106,7 @@ def main():
             f.write("{},{}\n".format(i, x))
 
     print("end")
+
 
 if __name__ == "__main__":
     main()

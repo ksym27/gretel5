@@ -64,8 +64,8 @@ def main():
 
     optimizer = create_optimizer(model.parameters(), config)
 
-    input_dir = os.path.join(config.workspace, config.input_directory)
-    filename = os.path.join(input_dir, config.chechpoint_file_name)
+    chkpt_dir = os.path.join(config.workspace, config.checkpoint_directory, config.name)
+    filename = os.path.join(chkpt_dir, config.chechpoint_file_name)
     checkpoint_data = torch.load(filename)
     model.load_state_dict(checkpoint_data["model_state_dict"])
     optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
@@ -88,22 +88,31 @@ def main():
         graph.compute_non_backtracking_edges()
         print("Done")
 
-    # モデルを使った予測
-    future = evaluate(
-        model,
-        graph,
-        test_trajectories,
-        0,
-        create_evaluator
-    )
-    # 予測のPrefix
-    for i, x in enumerate(future.observations):
-        print(int(torch.nonzero(x)[0][0]), ',')
 
-    # 予測のSurffix
-    with open('./result.csv', 'w') as f:
-        for i, x in enumerate(future.prediction):
-            f.write("{},{}\n".format(i, x))
+    # モデルを使った予測
+    n_test_trajectories = len(test_trajectories)
+    for i in range(n_test_trajectories):
+        future = evaluate(
+            model,
+            graph,
+            test_trajectories,
+            i,
+            create_evaluator
+        )
+        if i % 100 ==0 :
+            print(i)
+
+
+
+
+    # # 予測のPrefix
+    # for i, x in enumerate(future.observations):
+    #     print(int(torch.nonzero(x)[0][0]), ',')
+    #
+    # # 予測のSurffix
+    # with open('./result.csv', 'w') as f:
+    #     for i, x in enumerate(future.prediction):
+    #         f.write("{},{}\n".format(i, x))
 
     print("end")
 

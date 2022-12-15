@@ -1,16 +1,18 @@
 from collections import defaultdict, OrderedDict
 
 import torch
-import deep
+
 from torch_scatter import scatter_max
 from tqdm import tqdm
 from tabulate import tabulate
+from scipy.spatial import KDTree
 
 from future import Future
 from utils import generate_masks
 from trajectories import Trajectories
 from graph import Graph
 from model import Model
+import deep
 
 
 class Metric:
@@ -77,11 +79,11 @@ class Evaluator:
                 self.metrics_by_key[m] = defaultdict(lambda: Metric())
 
     def test_compute(
-        self,
-        model: Model,
-        graph: Graph,
-        trajectories: Trajectories,
-        trajectory_idx : int
+            self,
+            model: Model,
+            graph: Graph,
+            trajectories: Trajectories,
+            trajectory_idx: int
     ):
         """Update the metrics for all trajectories in `trajectories`"""
         self.init_metrics()
@@ -90,61 +92,104 @@ class Evaluator:
         # 初期のグラフを保管する
         init_graph = graph
 
+        # 予測されたノードを格納する
+        pred_nodes = []
+
+        # ノードのIDマップ
+        node_rid_map = graph.node_rid_map
+
         with torch.no_grad():
             observations_ = trajectories[trajectory_idx]
             number_steps_ = trajectories.leg_lengths(trajectory_idx)
+            node_times = trajectories.times(trajectory_idx)
 
-            # この箇所はなくなる予定
-            observations = observations_[-7:-2,:]
-            number_steps = number_steps_[-6:-1]
+            # 初期データの準備
+            n_prefix = config.number_observations
+            observations = observations_[:n_prefix, :]
+            number_steps = number_steps_[:n_prefix]
+            time = node_times[n_prefix-1]
 
-            n_observed = len(observations)
-            history = torch.arange(n_observed, device=config.device)
+            # 最後のステップは１に強制する
+            number_steps[-1] = 1
 
-            # マスクの作成する
-            observed = torch.unsqueeze(history, 0)
-            starts = torch.unsqueeze(history[-1], 0)
-            targets = starts+1
+            # 初期ノードIDを格納する
+            for i in range(n_prefix):
+                _, topk_nodes = torch.topk(observations[i], 1)
+                nid = node_rid_map[topk_nodes[0].item()]
+                pred_nodes.append(nid)
 
-            # # 間引いたマスクを生成する
-            observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
-            # Deep用のデータを準備する
-            # graph、init_graphのどちらでもよい
-            blocked_edges, edge_times = deep.prepare_data(trajectories, trajectory_idx, graph)
+            # ゴールの取得
+            goals = trajectories.goals()
+            goal_coords = graph.coords[goals]
 
-            # エッジの属性を更新する
-            # トラジェクトリの最初の時間のデータだけを追加する。
-            head_blocked_edges = torch.unsqueeze(blocked_edges[:, 0], 1)
-            head_edge_times = torch.unsqueeze(blocked_edges[:, 0], 1)
-            updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
+            # 探索用座標ツリー作成
+            tree = KDTree(goal_coords.tolist())
 
-            # エッジを更新したGraphを生成する
-            graph = init_graph.update(edges=updated_edges)
+            # ここからループさせる。
+            for i in range(config.max_iteration_prediction):
+                # マスクの作成
+                history = torch.arange(i, i + n_prefix, device=config.device)
+                observed = torch.unsqueeze(history, 0)
+                starts = torch.unsqueeze(history[-1], 0)
+                targets = starts + 1
 
-            #
-            diffusion_graph = (
-                graph if not config.diffusion_self_loops else graph.add_self_loops()
-            )
+                # 観測時間の閉塞データを取得する
+                blocked_edges = torch.unsqueeze(graph.blockage[:, time], 1)
+                # 時間情報を取得する
+                edge_times = time.repeat(graph.n_edge, 1)
 
-            predictions, _, rw_weights = model(
-                observations,
-                graph,
-                diffusion_graph,
-                observed=observed,
-                starts=starts,
-                targets=targets,
-                pairwise_node_features=None,
-                number_steps=number_steps
-            )
+                # エッジの属性を更新する
+                # トラジェクトリの最初の時間のデータだけを追加する。
+                updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
 
-        return Future(observations, starts[0], targets[0], predictions[0])
+                # エッジを更新したGraphを生成する
+                graph = init_graph.update(edges=updated_edges)
+
+                diffusion_graph = (
+                    graph if not config.diffusion_self_loops else graph.add_self_loops()
+                )
+
+                predictions, _, rw_weights = model(
+                    observations,
+                    graph,
+                    diffusion_graph,
+                    observed=observed,
+                    starts=starts,
+                    targets=targets,
+                    pairwise_node_features=None,
+                    number_steps=number_steps
+                )
+                # ノードインデックスを取得
+                _, topk_nodes = torch.topk(predictions[0], 1)
+                top_node = topk_nodes[0]
+
+                #　予測結果を保存する
+                pred_nodes.append(node_rid_map[top_node.item()])
+
+                # ゴールに到着したかどうか確認する
+                coord = graph.coords[top_node]
+                distance, nearest_i = tree.query(coord.tolist())
+                if distance <= config.max_distance_goals:
+                    break;
+
+                # ステップ数を更新する
+                number_steps = torch.cat((number_steps, torch.tensor([1], device=config.device)))
+                # observationsを更新する
+                pred_observation = torch.zeros(graph.n_node, device=config.device)
+                pred_observation[top_node] = 1
+                pred_observation = pred_observation.unsqueeze(dim=0)
+
+                observations = torch.cat((observations, pred_observation))
+
+
+        return Future(observations, pred_nodes)
 
     def compute(
-        self,
-        model: Model,
-        graph: Graph,
-        trajectories: Trajectories,
-        pairwise_features: torch.Tensor,
+            self,
+            model: Model,
+            graph: Graph,
+            trajectories: Trajectories,
+            pairwise_features: torch.Tensor,
     ):
         """Update the metrics for all trajectories in `trajectories`"""
         self.init_metrics()
@@ -161,7 +206,7 @@ class Evaluator:
                 if config.rw_edge_weight_see_number_step or config.rw_expected_steps:
                     if config.use_shortest_path_distance:
                         number_steps = (
-                            trajectories.leg_shortest_lengths(trajectory_idx).float() * 1.1
+                                trajectories.leg_shortest_lengths(trajectory_idx).float() * 1.1
                         ).long()
                     else:
                         number_steps = trajectories.leg_lengths(trajectory_idx)
@@ -178,12 +223,12 @@ class Evaluator:
                 observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
                 # Deep用のデータを準備する
                 # graph、init_graphのどちらでもよい
-                blocked_edges, edge_times = deep.prepare_data(trajectories, trajectory_idx, graph)
+                blocked_edges, edge_times = deep.blockage(trajectories, trajectory_idx, graph)
 
-                # エッジの属性を更新する
-                # トラジェクトリの最初の時間のデータだけを追加する。
-                head_blocked_edges = torch.unsqueeze(blocked_edges[:,0], 1)
-                head_edge_times = torch.unsqueeze(blocked_edges[:, 0], 1)
+                # # エッジの属性を更新する
+                # # トラジェクトリの最初の時間のデータだけを追加する。
+                head_blocked_edges = torch.unsqueeze(blocked_edges[:, 0], 1)
+                head_edge_times = torch.unsqueeze(edge_times[:, 0], 1)
                 updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
 
                 # エッジを更新したGraphを生成する
@@ -254,17 +299,17 @@ class Evaluator:
             self.metrics_by_key[metric][k.item()].add(v)
 
     def update_metrics(
-        self,
-        trajectories: Trajectories,
-        graph: Graph,
-        observations,
-        observed,
-        starts,
-        targets,
-        predictions,
-        rw_weights,
-        trajectory_idx,
-        rw_non_backtracking,
+            self,
+            trajectories: Trajectories,
+            graph: Graph,
+            observations,
+            observed,
+            starts,
+            targets,
+            predictions,
+            rw_weights,
+            trajectory_idx,
+            rw_non_backtracking,
     ):
         n_pred = len(starts)
         # remove added self loops
@@ -384,7 +429,7 @@ class Evaluator:
 
 
 def target2_accuracy(
-    start_nodes, target_nodes, predictions, given_as_target, pairwise_node_distances
+        start_nodes, target_nodes, predictions, given_as_target, pairwise_node_distances
 ):
     """Compute accuracy of a 2 classifier, decide between the true target and a "fake" one
     sampled from same Shortest Path Distance to start and having been given as target.
@@ -502,4 +547,3 @@ def compute_rank(predictions, targets):
     # break tighs evenly by taking the mean rank
     target_rank = (target_rank_upper + target_rank_lower) / 2
     return target_rank
-

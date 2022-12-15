@@ -31,7 +31,12 @@ class Graph:
                  edges,
                  n_node=None,
                  n_edge=None,
-                 blockage=None):
+                 blockage=None,
+                 node_id_map = None,
+                 edge_id_map = None,
+                 node_rid_map = None,
+                 edge_rid_map = None
+                 ):
         self.senders = senders
         self.receivers = receivers
         self.nodes = nodes
@@ -53,6 +58,10 @@ class Graph:
         self._check_device()
 
         self.blockage = blockage
+        self.node_id_map = node_id_map
+        self.edge_id_map = edge_id_map
+        self.node_rid_map = node_rid_map
+        self.edge_rid_map = edge_rid_map
 
     """ =========== PROPERTIES =========== """
 
@@ -830,6 +839,10 @@ class Graph:
                         edge_idx = edge_id_map[edge_id]
                         blockage[edge_idx] = torch.tensor(list(map(float, elements[num_attrs:-1])))
 
+
+        node_rid_map = {v: k for k, v in node_id_map.items()}
+        edge_rid_map = {v: k for k, v in edge_id_map.items()}
+
         return Graph(
             nodes=node_features,
             edges=edge_features,
@@ -838,7 +851,11 @@ class Graph:
             n_node=num_nodes,
             n_edge=num_edges,
             blockage = blockage,
-        ), node_id_map, edge_id_map
+            node_id_map = node_id_map,
+            edge_id_map = edge_id_map,
+            node_rid_map=node_rid_map,
+            edge_rid_map=edge_rid_map,
+        )
 
     def write_to_directory(self, directory: str):
         """Write `nodes.txt` and 'edges.txt` into `directory`

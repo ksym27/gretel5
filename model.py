@@ -205,13 +205,13 @@ class Model(nn.Module):
         if self.latent_transformer_see_target and pairwise_node_features is not None:
             witness_features.append(graph.nodes[targets].unsqueeze(0).repeat(graph.n_edge, 1, 1))
 
-        # 道路閉塞
-        if blocked_edges is not None:
-            witness_features.append(blocked_edges[:, observed])
-
-        # 時間情報
-        if edge_times is not None:
-            witness_features.append(edge_times[:, observed])
+        # # 道路閉塞
+        # if blocked_edges is not None:
+        #     witness_features.append(blocked_edges[:, observed])
+        #
+        # # 時間情報
+        # if edge_times is not None:
+        #     witness_features.append(edge_times[:, observed])
 
         # -- n_edge x (...)
         edge_input = torch.cat(witness_features, dim=2)

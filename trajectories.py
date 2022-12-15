@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import random
 
 import networkx as nx
 import numpy as np
@@ -105,6 +106,13 @@ class Trajectories:
                                                                   start: start + length
                                                                   ]
         return observations
+
+    def goals(self):
+        size = len(self._starts)
+        goals = torch.zeros([size], device=self.device, dtype=torch.long)
+        for i, (start, length) in enumerate(zip(self._starts, self._lengths)):
+            goals[i] = self._indices[start + length - 1]
+        return goals
 
     @property
     def lengths(self):
@@ -360,6 +368,7 @@ class Trajectories:
 
         # read observations, assume fixed number of observations
         obs_weights, obs_indices = None, None
+        goals = []
         paths = []
         max_path_length = 0
         with open(observations_filename) as f:

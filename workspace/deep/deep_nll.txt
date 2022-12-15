@@ -23,7 +23,7 @@ loss = nll_loss
 ; device can be cpu or cuda:0
 device = cuda:0
 
-lr = .1
+lr = .001
 momentum = 0.5
 batch_size = 5
 train_test_ratio = 0.8/0.2
@@ -32,7 +32,7 @@ train_test_ratio = 0.8/0.2
 overfit1 = False
 
 shuffle_samples = true
-number_epoch = 50
+number_epoch = 100
 seed = 0
 patience = 8
 
@@ -72,7 +72,9 @@ restore_from_checkpoint = False
 
 [deep]
 execute_deep_process = true
-num_observed_samples = 20
-create_path_file = false
+num_observed_samples = 40
+create_path_file = true
 obs_time_intervals = 6
-chechpoint_file_name = 0030.pt 
+chechpoint_file_name = 0095.pt
+max_distance_goals = 50
+max_iteration_prediction = 200

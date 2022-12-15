@@ -58,7 +58,7 @@ def load_data(
             paths_filename=os.path.join(input_dir, "paths.txt"),
         )
     else:
-        graph, node_id_map, _ = Graph.read_from_files_for_deep(
+        graph = Graph.read_from_files_for_deep(
             nodes_filename=os.path.join(input_dir, "nodes.txt"),
             edges_filename=os.path.join(input_dir, "edges.txt"),
             blockage_filename=os.path.join(input_dir, "blockage.csv"),
@@ -68,7 +68,7 @@ def load_data(
             lengths_filename=os.path.join(input_dir, "lengths.txt"),
             observations_filename=os.path.join(input_dir, "observations_6sec.txt"),
             num_nodes=graph.n_node,
-            node_id_map=node_id_map,
+            node_id_map=graph.node_id_map,
             graph=graph,
             paths_filename=os.path.join(input_dir, "paths.txt"),
             output=config.create_path_file,
@@ -119,6 +119,11 @@ def load_data(
         n_train = int(train_prop * len(valid_trajectories_idx))
         n_valid = int(valid_prop * len(valid_trajectories_idx))
         n_test = int(test_prop * len(valid_trajectories_idx))
+
+        # 念の為、シャッフルしておく。
+        torch.random.manual_seed(10)
+        idx = torch.randperm(valid_trajectories_idx.shape[0])
+        valid_trajectories_idx = valid_trajectories_idx[idx].view(-1)
 
         train_idx = valid_trajectories_idx[:n_train]
         train_mask = torch.zeros_like(valid_trajectories_mask)
@@ -314,8 +319,8 @@ def create_model(graph: Graph, cross_features: Optional[torch.Tensor], config: C
             + (2 * d_cross if config.latent_transformer_see_target else 0)
             # GCNに追加する
             + (2 if config.execute_deep_process else 0)
-            # MLPに追加する特徴の数
-            + (2 * config.number_observations if config.execute_deep_process else 0)
+            # # MLPに追加する特徴の数(道路＋時間)
+            # + (2 * config.number_observations if config.execute_deep_process else 0)
     )
     direction_edge_mlp = MLP(d_in_direction_mlp, 1)
 
@@ -386,12 +391,12 @@ def train_epoch(
             observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
             # Deep用のデータを準備する
             # graph、init_graphのどちらでもよい
-            blocked_edges, edge_times = deep.prepare_data(train_trajectories, trajectory_idx, graph)
+            blocked_edges, edge_times = deep.blockage(train_trajectories, trajectory_idx, graph)
 
             # エッジの属性を更新する
             # トラジェクトリの最初の時間のデータだけを追加する。
             head_blocked_edges = torch.unsqueeze(blocked_edges[:, 0], 1)
-            head_edge_times = torch.unsqueeze(blocked_edges[:, 0], 1)
+            head_edge_times = torch.unsqueeze(edge_times[:, 0], 1)
             updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
 
             # エッジを更新したGraphを生成する

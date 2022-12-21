@@ -115,6 +115,7 @@ class Evaluator:
             tree = KDTree(trajectories.goals)
 
             # ここからループさせる。
+            pred_goal = None
             for i in range(config.max_iteration_prediction):
                 # マスクの作成
                 history = torch.arange(i, i + n_prefix, device=config.device)
@@ -157,7 +158,7 @@ class Evaluator:
 
                 # ゴールに到着したかどうか確認する
                 coord = graph.coords[top_node]
-                distance, nearest_i = tree.query(coord.tolist())
+                distance, pred_goal = tree.query(coord.tolist())
                 if distance <= config.max_distance_goals:
                     break
 
@@ -172,7 +173,7 @@ class Evaluator:
 
             # 返却用のオブジェクト生成
             predicted_nodes = torch.stack(predicted_nodes)
-            future = Future(observations, node_times, predicted_nodes)
+            future = Future(observations, node_times, predicted_nodes, pred_goal)
 
         return future
 

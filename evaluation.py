@@ -114,7 +114,7 @@ def main():
             nodes_with_time = deep.update(future, graph, config)
             for n, t in nodes_with_time:
                 node = graph.node_rid_map[t.item()]
-                f.write('%d,%d,%d\n' % (ids[i], node, t.item()))
+                f.write('%d,%d,%d\n' % (ids[i], node, t))
 
     # # マスクを出力
     # mask_filename = os.path.join(chkpt_dir, 'mask.csv')

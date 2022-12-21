@@ -54,7 +54,7 @@ def update(future: Future, graph, config=None):
     obs = future.observations
     for node, time in zip(obs, times):
         _, topk_nodes = torch.topk(node, 1)
-        nodes_with_time.append([topk_nodes[0], time, 1])
+        nodes_with_time.append([topk_nodes[0], time.item(), 1])
 
     nodes = torch.unique_consecutive(future.nodes)
     pre_node, pre_time_idx, _ = nodes_with_time[-1]
@@ -76,13 +76,13 @@ def update(future: Future, graph, config=None):
 
     # 前の時間を埋める
     node, time, _ = nodes_with_time[0]
-    for i in torch.range(config.sim_start_time_step, time):
+    for i in range(config.sim_start_time_step, time):
         nodes_with_time.insert(i, [node, i, 3])
 
     # 後ろの時間を埋める
     node, time, _ = nodes_with_time[-1]
-    for i in torch.range(time+1, config.sim_end_time_step):
-        nodes_with_time.append(i, [node, i, 3])
+    for i in range(time+1, config.sim_end_time_step):
+        nodes_with_time.append([node, i, 3])
 
 
 

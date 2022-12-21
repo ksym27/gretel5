@@ -93,10 +93,7 @@ class Evaluator:
         init_graph = graph
 
         # 予測されたノードを格納する
-        pred_nodes = []
-
-        # ノードのIDマップ
-        node_rid_map = graph.node_rid_map
+        predicted_nodes = []
 
         with torch.no_grad():
             observations_ = trajectories[trajectory_idx]
@@ -107,23 +104,15 @@ class Evaluator:
             n_prefix = config.number_observations
             observations = observations_[:n_prefix, :]
             number_steps = number_steps_[:n_prefix]
-            time = node_times[n_prefix-1]
+            node_times = node_times[:n_prefix]
+
+            time = node_times[-1]
 
             # 最後のステップは１に強制する
             number_steps[-1] = 1
 
-            # 初期ノードIDを格納する
-            for i in range(n_prefix):
-                _, topk_nodes = torch.topk(observations[i], 1)
-                nid = node_rid_map[topk_nodes[0].item()]
-                pred_nodes.append(nid)
-
             # ゴールの取得
-            goals = trajectories.goals()
-            goal_coords = graph.coords[goals]
-
-            # 探索用座標ツリー作成
-            tree = KDTree(goal_coords.tolist())
+            tree = KDTree(trajectories.goals)
 
             # ここからループさせる。
             for i in range(config.max_iteration_prediction):
@@ -163,26 +152,29 @@ class Evaluator:
                 _, topk_nodes = torch.topk(predictions[0], 1)
                 top_node = topk_nodes[0]
 
-                #　予測結果を保存する
-                pred_nodes.append(node_rid_map[top_node.item()])
+                # 　予測結果を保存する
+                predicted_nodes.append(top_node)
 
                 # ゴールに到着したかどうか確認する
                 coord = graph.coords[top_node]
                 distance, nearest_i = tree.query(coord.tolist())
                 if distance <= config.max_distance_goals:
-                    break;
+                    break
 
                 # ステップ数を更新する
                 number_steps = torch.cat((number_steps, torch.tensor([1], device=config.device)))
                 # observationsを更新する
-                pred_observation = torch.zeros(graph.n_node, device=config.device)
-                pred_observation[top_node] = 1
-                pred_observation = pred_observation.unsqueeze(dim=0)
+                predicted_node = torch.zeros(graph.n_node, device=config.device)
+                predicted_node[top_node] = 1
+                predicted_node = predicted_node.unsqueeze(dim=0)
 
-                observations = torch.cat((observations, pred_observation))
+                observations = torch.cat((observations, predicted_node))
 
+            # 返却用のオブジェクト生成
+            predicted_nodes = torch.stack(predicted_nodes)
+            future = Future(observations, node_times, predicted_nodes)
 
-        return Future(observations, pred_nodes)
+        return future
 
     def compute(
             self,

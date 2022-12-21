@@ -1,5 +1,5 @@
-
 import torch
+from future import Future
 
 
 def blockage(trajectories, trajectory_idx, graph):
@@ -45,3 +45,45 @@ def nearest_nodes(nodes, start, graph):
             min_dist = dist
             min_idx = i
     return min_idx, min_dist
+
+
+def update(future: Future, graph, config=None):
+    # 予測前
+    nodes_with_time = []
+    times = future.node_times
+    obs = future.observations
+    for node, time in zip(obs, times):
+        _, topk_nodes = torch.topk(node, 1)
+        nodes_with_time.append([topk_nodes[0], time, 1])
+
+    nodes = torch.unique_consecutive(future.nodes)
+    pre_node, pre_time_idx, _ = nodes_with_time[-1]
+
+    # 予測
+    interval = config.obs_time_intervals
+    current_time = 0
+    n_steps = 1
+    for node in nodes:
+        if pre_node != node:
+            edge = graph.edge(pre_node, node)
+            time = edge[0] / config.agent_speed
+
+            current_time += time
+            while (n_steps * interval) <= current_time:
+                nodes_with_time.append([node, pre_time_idx + n_steps, 2])
+                n_steps += 1
+        pre_node = node
+
+    # 前の時間を埋める
+    node, time, _ = nodes_with_time[0]
+    for i in torch.range(config.sim_start_time_step, time):
+        nodes_with_time.insert(i, [node, i, 3])
+
+    # 後ろの時間を埋める
+    node, time, _ = nodes_with_time[-1]
+    for i in torch.range(time+1, config.sim_end_time_step):
+        nodes_with_time.append(i, [node, i, 3])
+
+
+
+    return nodes_with_time

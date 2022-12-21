@@ -1,8 +1,7 @@
 class Future:
 
-    def __init__(self, observations, prediction, start=None, target=None):
+    def __init__(self, observations, node_times, predicted_nodes):
         self.observations = observations
-        self.start = start
-        self.target = target
-        self.prediction = prediction
+        self.node_times = node_times
+        self.nodes = predicted_nodes
 

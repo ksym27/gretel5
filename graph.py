@@ -32,10 +32,10 @@ class Graph:
                  n_node=None,
                  n_edge=None,
                  blockage=None,
-                 node_id_map = None,
-                 edge_id_map = None,
-                 node_rid_map = None,
-                 edge_rid_map = None
+                 node_id_map=None,
+                 edge_id_map=None,
+                 node_rid_map=None,
+                 edge_rid_map=None
                  ):
         self.senders = senders
         self.receivers = receivers
@@ -272,7 +272,7 @@ class Graph:
 
         assert node_signal.shape[0] == self.n_node
         assert self.edges is not None and \
-            self.edges.squeeze().dim() == 1
+               self.edges.squeeze().dim() == 1
 
         senders_features = node_signal[self.senders]  # n_edge x d_node
         broadcast_edges = self.edges.view(
@@ -339,7 +339,7 @@ class Graph:
             dim=0,
             dim_size=self.n_node
         )
-#            fill_value=-1e20)
+        #            fill_value=-1e20)
         shifted_weights = self.edges - max_out_weight_per_node[self.senders]
 
         exp_weights = shifted_weights.exp()
@@ -434,7 +434,7 @@ class Graph:
                 possible_edges_mask = self.senders == curr_node
                 if not allow_backward and step >= 1:
                     possible_edges_mask &= (
-                        self.receivers != traversed_nodes[i_sample, step - 1])
+                            self.receivers != traversed_nodes[i_sample, step - 1])
 
                 if possible_edges_mask.long().sum() == 0:
                     break  # dead end random walk
@@ -784,9 +784,9 @@ class Graph:
 
     @classmethod
     def read_from_files_for_deep(cls,
-                         nodes_filename: str,
-                         edges_filename: str,
-                         blockage_filename: str = None):
+                                 nodes_filename: str,
+                                 edges_filename: str,
+                                 blockage_filename: str = None):
 
         node_features = None
         edge_features = None
@@ -839,7 +839,6 @@ class Graph:
                         edge_idx = edge_id_map[edge_id]
                         blockage[edge_idx] = torch.tensor(list(map(float, elements[num_attrs:-1])))
 
-
         node_rid_map = {v: k for k, v in node_id_map.items()}
         edge_rid_map = {v: k for k, v in edge_id_map.items()}
 
@@ -850,9 +849,9 @@ class Graph:
             receivers=receivers,
             n_node=num_nodes,
             n_edge=num_edges,
-            blockage = blockage,
-            node_id_map = node_id_map,
-            edge_id_map = edge_id_map,
+            blockage=blockage,
+            node_id_map=node_id_map,
+            edge_id_map=edge_id_map,
             node_rid_map=node_rid_map,
             edge_rid_map=edge_rid_map,
         )
@@ -1042,6 +1041,6 @@ class Graph:
                 raise ValueError("Graph `receivers` should be 1D")
 
             if self.edges.shape[0] != self.n_edge or \
-                self.senders.shape[0] != self.n_edge or \
-                self.receivers.shape[0] != self.n_edge:
+                    self.senders.shape[0] != self.n_edge or \
+                    self.receivers.shape[0] != self.n_edge:
                 raise ValueError(f"Incorrect Graph `edges` shape")

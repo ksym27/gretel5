@@ -8,7 +8,7 @@ from typing import Callable
 from config import Config
 from metrics import Evaluator
 from main import load_data, create_optimizer, create_model, evaluate
-
+import deep
 
 def evaluate(
         model,
@@ -69,6 +69,7 @@ def main():
     checkpoint_data = torch.load(filename)
     model.load_state_dict(checkpoint_data["model_state_dict"])
     optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
+    output_filename = os.path.join(chkpt_dir, config.prediction_file_name)
 
     def create_evaluator():
         return Evaluator(
@@ -88,9 +89,9 @@ def main():
         graph.compute_non_backtracking_edges()
         print("Done")
 
-
     # モデルを使った予測
     n_test_trajectories = len(test_trajectories)
+    futures = []
     for i in range(n_test_trajectories):
         future = evaluate(
             model,
@@ -99,20 +100,33 @@ def main():
             i,
             create_evaluator
         )
-        if i % 100 ==0 :
+        futures.append(future)
+        if i % 10 == 0 and i != 0:
             print(i)
+            break
 
+    # マスク情報を取得
+    ids = torch.where(test_trajectories._mask == True)[0]
 
+    # 結果を出力する
+    with open(output_filename, 'w') as f:
+        for i, future in enumerate(futures):
+            nodes_with_time = deep.update(future, graph, config)
+            for n, t in nodes_with_time:
+                node = graph.node_rid_map[t.item()]
+                f.write('%d,%d,%d\n' % (ids[i], node, t.item()))
 
+    # # マスクを出力
+    # mask_filename = os.path.join(chkpt_dir, 'mask.csv')
+    # with open(mask_filename, 'w') as f:
+    #     for i, m in enumerate(test_trajectories._mask):
+    #         f.write('%d,%d\n' % (i, m.item()))
 
-    # # 予測のPrefix
-    # for i, x in enumerate(future.observations):
-    #     print(int(torch.nonzero(x)[0][0]), ',')
-    #
-    # # 予測のSurffix
-    # with open('./result.csv', 'w') as f:
-    #     for i, x in enumerate(future.prediction):
-    #         f.write("{},{}\n".format(i, x))
+    # # マスクを出力
+    # mask_filename = os.path.join(chkpt_dir, 'mask.csv')
+    # with open(mask_filename, 'w') as f:
+    #     for i, m in enumerate(test_trajectories._mask):
+    #         f.write('%d,%d\n' % (i, m.item()))
 
     print("end")
 

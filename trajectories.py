@@ -29,6 +29,7 @@ class Trajectories:
             times: torch.Tensor = None,
             traversed_edges: torch.Tensor = None,
             pairwise_node_distances: torch.Tensor = None,
+            goals = None
     ):
         """Create a new trajectories object, can be masked to have access to only a subset of the dataset
 
@@ -72,6 +73,8 @@ class Trajectories:
         self._index_mapping = None
         self._num_trajectories = None
 
+        self.goals = goals
+
         # check that the number of legs equals sum of (trajectory lengths - 1 each)
         if traversed_edges is not None:
             assert traversed_edges.shape[0] == self._lengths.sum() - len(self)
@@ -106,13 +109,6 @@ class Trajectories:
                                                                   start: start + length
                                                                   ]
         return observations
-
-    def goals(self):
-        size = len(self._starts)
-        goals = torch.zeros([size], device=self.device, dtype=torch.long)
-        for i, (start, length) in enumerate(zip(self._starts, self._lengths)):
-            goals[i] = self._indices[start + length - 1]
-        return goals
 
     @property
     def lengths(self):
@@ -347,7 +343,8 @@ class Trajectories:
     @classmethod
     def read_from_files_for_deep(
             cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename, output,
-            obs_time_intervals
+            obs_time_intervals,
+            goal_filename
     ):
 
         # read trajectories lengths
@@ -366,9 +363,16 @@ class Trajectories:
         nx_graph.add_edges_from(zip(numpify(graph.senders), numpify(graph.receivers), attr_dict))
         nx_graph.add_nodes_from(range(graph.n_node))
 
+        # goals
+        goals = []
+        with open(goal_filename) as f:
+            f.readline()
+            for i, line in enumerate(f.readlines()):
+                elements = line.split(",")
+                goals.append([elements[1], elements[2]])
+
         # read observations, assume fixed number of observations
         obs_weights, obs_indices = None, None
-        goals = []
         paths = []
         max_path_length = 0
         with open(observations_filename) as f:
@@ -435,4 +439,5 @@ class Trajectories:
             lengths=lengths,
             traversed_edges=paths,
             times=obs_times,
+            goals = goals
         )

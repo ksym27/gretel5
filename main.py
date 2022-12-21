@@ -61,7 +61,7 @@ def load_data(
         graph = Graph.read_from_files_for_deep(
             nodes_filename=os.path.join(input_dir, "nodes.txt"),
             edges_filename=os.path.join(input_dir, "edges.txt"),
-            blockage_filename=os.path.join(input_dir, "blockage.csv"),
+            blockage_filename=os.path.join(input_dir, "blockage.csv")
         )
 
         trajectories = Trajectories.read_from_files_for_deep(
@@ -72,7 +72,8 @@ def load_data(
             graph=graph,
             paths_filename=os.path.join(input_dir, "paths.txt"),
             output=config.create_path_file,
-            obs_time_intervals=config.obs_time_intervals
+            obs_time_intervals=config.obs_time_intervals,
+            goal_filename=os.path.join(input_dir, "hinan.csv")
         )
 
     pairwise_node_features = load_tensor(config.device, input_dir, "pairwise_node_features.pt")

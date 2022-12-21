@@ -112,9 +112,11 @@ def main():
     with open(output_filename, 'w') as f:
         for i, future in enumerate(futures):
             nodes_with_time = deep.update(future, graph, config)
-            for n, t in nodes_with_time:
-                node = graph.node_rid_map[t.item()]
-                f.write('%d,%d,%d\n' % (ids[i], node, t))
+            count = 0
+            for n, t, p in nodes_with_time:
+                node = graph.node_rid_map[n.item()]
+                f.write('%d,%d,%d,%d,%d,%d\n' % (ids[i], node, t * config.obs_time_intervals, p, future.goal + 1, count))
+                count+=1
 
     # # マスクを出力
     # mask_filename = os.path.join(chkpt_dir, 'mask.csv')

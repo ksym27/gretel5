@@ -160,6 +160,7 @@ class Evaluator:
                 coord = graph.coords[top_node]
                 distance, pred_goal = tree.query(coord.tolist())
                 if distance <= config.max_distance_goals:
+                    print("reach a goal", trajectory_idx)
                     break
 
                 # ステップ数を更新する

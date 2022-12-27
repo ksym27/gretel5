@@ -93,9 +93,7 @@ class Model(nn.Module):
         starts,
         targets,
         pairwise_node_features,
-        number_steps=None,
-        blocked_edges=None,
-        edge_times=None
+        number_steps=None
     ):
         # check shapes
         assert observed.shape[0] == starts.shape[0] == targets.shape[0]
@@ -128,7 +126,7 @@ class Model(nn.Module):
 
             # compute rw graph
             rw_graphs = self.compute_rw_weights(
-                virtual_coords, observed, pairwise_node_features, targets, graph, blocked_edges, edge_times
+                virtual_coords, observed, pairwise_node_features, targets, graph
             )
 
         # random walks
@@ -170,7 +168,7 @@ class Model(nn.Module):
 
     ## Network->Graph ?
     def compute_rw_weights(
-        self, virtual_coords, observed, pairwise_node_features, targets, graph: Graph, blocked_edges, edge_times
+        self, virtual_coords, observed, pairwise_node_features, targets, graph: Graph
     ) -> Graph:
         n_pred = observed.shape[0]
         witness_features = []
@@ -204,14 +202,6 @@ class Model(nn.Module):
         # -- n_edge x batch x d_node
         if self.latent_transformer_see_target and pairwise_node_features is not None:
             witness_features.append(graph.nodes[targets].unsqueeze(0).repeat(graph.n_edge, 1, 1))
-
-        # # 道路閉塞
-        # if blocked_edges is not None:
-        #     witness_features.append(blocked_edges[:, observed])
-        #
-        # # 時間情報
-        # if edge_times is not None:
-        #     witness_features.append(edge_times[:, observed])
 
         # -- n_edge x (...)
         edge_input = torch.cat(witness_features, dim=2)

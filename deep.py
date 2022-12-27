@@ -1,26 +1,25 @@
 import torch
 from future import Future
 
-
-def blockage(trajectories, trajectory_idx, graph):
-    # 観測ノード列から観測エッジ列を取得
-    paths = trajectories.traversed_edges_by_trajectory(trajectory_idx)
-    n_steps, mn_edges = paths.size()
-
-    # 観測時間の閉塞データを取得する
-    node_times = trajectories.times(trajectory_idx)
-    blocked_edges = graph.blockage[:, node_times[:-1]]
-
-    # 時間情報の生成する
-    # edge_times = torch.zeros(n_steps, graph.n_edge)
-    # for f, p, t in zip(edge_times, paths, node_times):
-    #     f[p[p != -1]] = float(t)
-    # edge_times = edge_times.t()
-
-    # 時間情報の生成する
-    edge_times = node_times.repeat(graph.n_edge, 1)
-
-    return blocked_edges, edge_times
+# def blockage(trajectories, trajectory_idx, graph):
+#     # 観測ノード列から観測エッジ列を取得
+#     paths = trajectories.traversed_edges_by_trajectory(trajectory_idx)
+#     n_steps, mn_edges = paths.size()
+#
+#     # 観測時間の閉塞データを取得する
+#     node_times = trajectories.times(trajectory_idx)
+#     blocked_edges = graph.blockage[:, node_times[:-1]]
+#
+#     # 時間情報の生成する
+#     # edge_times = torch.zeros(n_steps, graph.n_edge)
+#     # for f, p, t in zip(edge_times, paths, node_times):
+#     #     f[p[p != -1]] = float(t)
+#     # edge_times = edge_times.t()
+#
+#     # 時間情報の生成する
+#     edge_times = node_times.repeat(graph.n_edge, 1)
+#
+#     return blocked_edges, edge_times
 
 
 def sampling_mask(observed, starts, targets, n_samples):
@@ -87,3 +86,4 @@ def update(future: Future, graph, config=None):
 
 
     return nodes_with_time
+

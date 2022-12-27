@@ -390,15 +390,16 @@ def train_epoch(
 
             # # 間引いたマスクを生成する
             observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
-            # Deep用のデータを準備する
-            # graph、init_graphのどちらでもよい
-            blocked_edges, edge_times = deep.blockage(train_trajectories, trajectory_idx, graph)
+            # 時間情報を取得
+            node_times = train_trajectories.times(trajectory_idx)
+            train_time = node_times[0]
+            # 観測時間の閉塞データを取得する
+            blocked_edges = torch.unsqueeze(graph.blockage[:, train_time], 1)
+            # 時間情報を取得する
+            edge_times = time.repeat(graph.n_edge, 1)
 
             # エッジの属性を更新する
-            # トラジェクトリの最初の時間のデータだけを追加する。
-            head_blocked_edges = torch.unsqueeze(blocked_edges[:, 0], 1)
-            head_edge_times = torch.unsqueeze(edge_times[:, 0], 1)
-            updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
+            updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
 
             # エッジを更新したGraphを生成する
             graph = init_graph.update(edges=updated_edges)
@@ -415,9 +416,7 @@ def train_epoch(
                 starts=starts,
                 targets=targets,
                 pairwise_node_features=pairwise_node_features,
-                number_steps=number_steps,
-                blocked_edges=blocked_edges,
-                edge_times=edge_times
+                number_steps=number_steps
             )
 
             print_num_preds += starts.shape[0]

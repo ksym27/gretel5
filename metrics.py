@@ -106,7 +106,9 @@ class Evaluator:
             number_steps = number_steps_[:n_prefix]
             node_times = node_times[:n_prefix]
 
-            time = node_times[-1]
+            # 時間を設定する
+            time_first = node_times[0]
+            time_last = node_times[-1]
 
             # 最後のステップは１に強制する
             number_steps[-1] = 1
@@ -115,7 +117,7 @@ class Evaluator:
             tree = KDTree(trajectories.goals)
 
             # ここからループさせる。
-            pred_goal = None
+            target_goal = None
             for i in range(config.max_iteration_prediction):
                 # マスクの作成
                 history = torch.arange(i, i + n_prefix, device=config.device)
@@ -124,12 +126,10 @@ class Evaluator:
                 targets = starts + 1
 
                 # 観測時間の閉塞データを取得する
-                blocked_edges = torch.unsqueeze(graph.blockage[:, time], 1)
+                blocked_edges = torch.unsqueeze(graph.blockage[:, time_first], 1)
                 # 時間情報を取得する
-                edge_times = time.repeat(graph.n_edge, 1)
-
+                edge_times = time_first.repeat(graph.n_edge, 1)
                 # エッジの属性を更新する
-                # トラジェクトリの最初の時間のデータだけを追加する。
                 updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
 
                 # エッジを更新したGraphを生成する
@@ -149,16 +149,26 @@ class Evaluator:
                     pairwise_node_features=None,
                     number_steps=number_steps
                 )
+
+                prediction = predictions.squeeze()
+
+                # 車の閉塞を考慮する
+                blockage_edges = graph.blockage[:, time_last]
+                blockage_idx = torch.where(blockage_edges != 0)
+
+                receivers = graph.receivers[blockage_idx]
+                prediction[receivers] = 0
+
                 # ノードインデックスを取得
-                _, topk_nodes = torch.topk(predictions[0], 1)
-                top_node = topk_nodes[0]
+                _, topk_nodes = torch.topk(prediction, 1)
+                next_node = topk_nodes.squeeze()
 
                 # 　予測結果を保存する
-                predicted_nodes.append(top_node)
+                predicted_nodes.append(next_node)
 
                 # ゴールに到着したかどうか確認する
-                coord = graph.coords[top_node]
-                distance, pred_goal = tree.query(coord.tolist())
+                coord = graph.coords[next_node]
+                distance, target_goal = tree.query(coord.tolist())
                 if distance <= config.max_distance_goals:
                     print("reach a goal", trajectory_idx)
                     break
@@ -167,14 +177,16 @@ class Evaluator:
                 number_steps = torch.cat((number_steps, torch.tensor([1], device=config.device)))
                 # observationsを更新する
                 predicted_node = torch.zeros(graph.n_node, device=config.device)
-                predicted_node[top_node] = 1
+                predicted_node[next_node] = 1
                 predicted_node = predicted_node.unsqueeze(dim=0)
-
+                # 観測データを結合する
                 observations = torch.cat((observations, predicted_node))
+                time_last += 1
+
 
             # 返却用のオブジェクト生成
             predicted_nodes = torch.stack(predicted_nodes)
-            future = Future(observations, node_times, predicted_nodes, pred_goal)
+            future = Future(observations, node_times, predicted_nodes, target_goal)
 
         return future
 
@@ -215,15 +227,17 @@ class Evaluator:
 
                 # 間引いたマスクを生成する
                 observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
-                # Deep用のデータを準備する
-                # graph、init_graphのどちらでもよい
-                blocked_edges, edge_times = deep.blockage(trajectories, trajectory_idx, graph)
 
-                # # エッジの属性を更新する
-                # # トラジェクトリの最初の時間のデータだけを追加する。
-                head_blocked_edges = torch.unsqueeze(blocked_edges[:, 0], 1)
-                head_edge_times = torch.unsqueeze(edge_times[:, 0], 1)
-                updated_edges = torch.cat([init_graph.edges, head_blocked_edges, head_edge_times], 1)
+                # 時間情報を取得
+                node_times = trajectories.times(trajectory_idx)
+                time = node_times[0]
+                # 観測時間の閉塞データを取得する
+                blocked_edges = torch.unsqueeze(graph.blockage[:, time], 1)
+                # 時間情報を取得する
+                edge_times = time.repeat(graph.n_edge, 1)
+
+                # エッジの属性を更新する
+                updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
 
                 # エッジを更新したGraphを生成する
                 graph = init_graph.update(edges=updated_edges)
@@ -247,9 +261,7 @@ class Evaluator:
                     starts=starts,
                     targets=targets,
                     pairwise_node_features=pairwise_features,
-                    number_steps=number_steps,
-                    blocked_edges=blocked_edges,
-                    edge_times=edge_times
+                    number_steps=number_steps
                 )
 
                 self.update_metrics(

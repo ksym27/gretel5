@@ -63,6 +63,7 @@ class Graph:
         self.node_rid_map = node_rid_map
         self.edge_rid_map = edge_rid_map
 
+
     """ =========== PROPERTIES =========== """
 
     @property
@@ -827,6 +828,7 @@ class Graph:
                     edge_features[i] = torch.tensor(
                         list(map(float, elements[3:])))
 
+        # 道路閉塞の情報を生成する
         if blockage_filename is not None and os.path.exists(blockage_filename):
             with open(blockage_filename) as f:
                 _, num_attrs, num_steps = map(int, f.readline().split('\t'))
@@ -839,6 +841,7 @@ class Graph:
                         edge_idx = edge_id_map[edge_id]
                         blockage[edge_idx] = torch.tensor(list(map(float, elements[num_attrs:-1])))
 
+        # ノードのIDマップの生成
         node_rid_map = {v: k for k, v in node_id_map.items()}
         edge_rid_map = {v: k for k, v in edge_id_map.items()}
 

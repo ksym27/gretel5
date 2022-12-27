@@ -381,7 +381,7 @@ class Trajectories:
             obs_weights = torch.zeros(num_observations, k)
             obs_indices = torch.zeros(num_observations, k, dtype=torch.long)
             obs_times = torch.zeros(num_observations, k, dtype=torch.long)
-
+            
             for i, line in enumerate(f.readlines()):
                 elements = line.split("\t")
                 # for n in range(k):
@@ -439,5 +439,5 @@ class Trajectories:
             lengths=lengths,
             traversed_edges=paths,
             times=obs_times,
-            goals = goals
+            goals=goals
         )

@@ -73,7 +73,7 @@ restore_from_checkpoint = False
 [deep]
 execute_deep_process = true
 num_observed_samples = 50
-create_path_file = true
+create_path_file = false
 obs_time_intervals = 6
 chechpoint_file_name = 0095.pt
 max_distance_goals = 50

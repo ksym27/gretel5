@@ -155,7 +155,7 @@ class Evaluator:
                 # 車の閉塞を考慮する
                 blockage_edges = graph.blockage[:, time_last]
                 blockage_idx = torch.where(blockage_edges != 0)
-
+                # 閉塞の確率を０に設定する
                 receivers = graph.receivers[blockage_idx]
                 prediction[receivers] = 0
 
@@ -243,16 +243,9 @@ class Evaluator:
                 # エッジを更新したGraphを生成する
                 graph = init_graph.update(edges=updated_edges)
 
-                #
                 diffusion_graph = (
                     graph if not config.diffusion_self_loops else graph.add_self_loops()
                 )
-
-                ## observation：トラジェクト上における各ステップでのノードの確率[]
-                ## number_steps：トラジェクトリの各ステップにおけるエッジ数
-                ## observed：トラジェクト上における各ステップでのノードの確率[]
-                ## starts：現在地
-                ## targets：予測（NEXT）
 
                 predictions, _, rw_weights = model(
                     observations,

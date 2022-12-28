@@ -403,11 +403,9 @@ def train_epoch(
 
             # エッジを更新したGraphを生成する
             graph = init_graph.update(edges=updated_edges)
-
             #
             diffusion_graph = graph if not config.diffusion_self_loops else graph.add_self_loops()
 
-            # モデルによる予測
             predictions, potentials, rw_weights = model(
                 observations,
                 graph,

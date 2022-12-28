@@ -160,8 +160,10 @@ class Evaluator:
                 prediction[receivers] = 0
 
                 # ノードインデックスを取得
-                _, topk_nodes = torch.topk(prediction, 1)
-                next_node = topk_nodes.squeeze()
+                next_node = torch.where(observations[-1] != 0)[0].squeeze()
+                if torch.count_nonzero(prediction, 0) != 0:
+                    _, topk_nodes = torch.topk(prediction, 1)
+                    next_node = topk_nodes.squeeze()
 
                 # 　予測結果を保存する
                 predicted_nodes.append(next_node)
@@ -181,12 +183,11 @@ class Evaluator:
                 predicted_node = predicted_node.unsqueeze(dim=0)
                 # 観測データを結合する
                 observations = torch.cat((observations, predicted_node))
-                time_last += 1
-
+                time_last = time_last + 1
 
             # 返却用のオブジェクト生成
             predicted_nodes = torch.stack(predicted_nodes)
-            future = Future(observations, node_times, predicted_nodes, target_goal)
+            future = Future(trajectory_idx, observations, node_times, predicted_nodes, target_goal)
 
         return future
 

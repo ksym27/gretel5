@@ -396,7 +396,7 @@ def train_epoch(
             # 観測時間の閉塞データを取得する
             blocked_edges = torch.unsqueeze(graph.blockage[:, train_time], 1)
             # 時間情報を取得する
-            edge_times = time.repeat(graph.n_edge, 1)
+            edge_times = train_time.repeat(graph.n_edge, 1)
 
             # エッジの属性を更新する
             updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)

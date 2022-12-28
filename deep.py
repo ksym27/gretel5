@@ -1,6 +1,7 @@
 import torch
 from future import Future
 
+
 # def blockage(trajectories, trajectory_idx, graph):
 #     # 観測ノード列から観測エッジ列を取得
 #     paths = trajectories.traversed_edges_by_trajectory(trajectory_idx)
@@ -65,6 +66,8 @@ def update(future: Future, graph, config=None):
     for node in nodes:
         if pre_node != node:
             edge = graph.edge(pre_node, node)
+            if edge is None or len(edge) <= 0:
+                print(pre_node, node)
             time = edge[0] / config.agent_speed
 
             current_time += time
@@ -73,17 +76,4 @@ def update(future: Future, graph, config=None):
                 n_steps += 1
         pre_node = node
 
-    # # 前の時間を埋める
-    # node, time, _ = nodes_with_time[0]
-    # for i in range(config.sim_start_time_step, time):
-    #     nodes_with_time.insert(i, [node, i, 1])
-    #
-    # # 後ろの時間を埋める
-    # node, time, _ = nodes_with_time[-1]
-    # for i in range(time+1, config.sim_end_time_step):
-    #     nodes_with_time.append([node, i, 4])
-
-
-
     return nodes_with_time
-

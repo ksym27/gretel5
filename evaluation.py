@@ -89,34 +89,20 @@ def main():
         graph.compute_non_backtracking_edges()
         print("Done")
 
-    # モデルを使った予測
-    n_test_trajectories = len(test_trajectories)
-    futures = []
-    for i in range(n_test_trajectories):
-        future = evaluate(
-            model,
-            graph,
-            test_trajectories,
-            i,
-            create_evaluator
-        )
-        futures.append(future)
-        if i % 10 == 0 and i != 0:
-            print(i)
-            break
-
     # マスク情報を取得
     ids = torch.where(test_trajectories._mask == True)[0]
 
-    # 結果を出力する
+    # モデルを使った予測
     with open(output_filename, 'w') as f:
-        for i, future in enumerate(futures):
+        for i in range(len(test_trajectories)):
+            future = evaluate(model, graph, test_trajectories, i, create_evaluator)
             nodes_with_time = deep.update(future, graph, config)
-            count = 0
             for n, t, p in nodes_with_time:
                 node = graph.node_rid_map[n.item()]
-                f.write('%d,%d,%d,%d,%d,%d\n' % (ids[i], node, t * config.obs_time_intervals, p, future.goal + 1, count))
-                count+=1
+                f.write('%d,%d,%d,%d,%d\n' % (ids[i], node, t * config.obs_time_intervals, p, future.goal + 1))
+            if i % 10 == 0:
+                print(i)
+
 
     # # マスクを出力
     # mask_filename = os.path.join(chkpt_dir, 'mask.csv')

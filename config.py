@@ -91,8 +91,6 @@ class Config(object):
     max_iteration_prediction: int = 100
     prediction_file_name: str = ""
     agent_speed: float = 1.0
-    sim_start_time_step: int = 0
-    sim_end_time_step: int = 1000
 
     def load_from_file(self, filename: str):
         """Load configuration fiels from a file

@@ -33,9 +33,7 @@ class Graph:
                  n_edge=None,
                  blockage=None,
                  node_id_map=None,
-                 edge_id_map=None,
-                 node_rid_map=None,
-                 edge_rid_map=None
+                 node_rid_map=None
                  ):
         self.senders = senders
         self.receivers = receivers
@@ -59,9 +57,7 @@ class Graph:
 
         self.blockage = blockage
         self.node_id_map = node_id_map
-        self.edge_id_map = edge_id_map
         self.node_rid_map = node_rid_map
-        self.edge_rid_map = edge_rid_map
 
 
     """ =========== PROPERTIES =========== """
@@ -792,7 +788,6 @@ class Graph:
         node_features = None
         edge_features = None
         node_id_map = {}
-        edge_id_map = {}
         blockage = None
 
         # read node features
@@ -805,45 +800,65 @@ class Graph:
                         list(map(float,
                                  line.split('\t')[1:])))
                     node_features[i] = features
-                    # NodeidとIndexのマップを作成
+                    # NodeとIndexのマップを作成
                     node_id_map[int(line.split('\t')[0])] = i
 
         # read edge features
         with open(edges_filename) as f:
-            num_edges, num_edge_features = map(int, f.readline().split('\t'))
-
+            num_base_edges, num_edge_features = map(int, f.readline().split('\t'))
+            num_edges = num_base_edges * 2 + num_nodes
+            
             senders = torch.zeros(num_edges, dtype=torch.long)
             receivers = torch.zeros(num_edges, dtype=torch.long)
 
             if num_edge_features > 0:
                 edge_features = torch.zeros(num_edges, num_edge_features)
 
+            # エッジ＋リバースエッジの作成
             for i, line in enumerate(f.readlines()):
                 elements = line.split('\t')
-                edge_id_map[int(elements[0])] = i
+                # normal direction
                 senders[i] = node_id_map[int(elements[1])]
                 receivers[i] = node_id_map[int(elements[2])]
+                edge_features[i] = torch.tensor(list(map(float, elements[3:])))
+                # reverse direction
+                r_id = num_base_edges+i
+                senders[r_id] = receivers[i]
+                receivers[r_id] = senders[i]
+                edge_features[r_id] = edge_features[i]
 
-                if edge_features is not None:
-                    edge_features[i] = torch.tensor(
-                        list(map(float, elements[3:])))
+            # ループエッジの作成
+            for i in range(num_nodes):
+                edge_id = num_base_edges*2+i
+                senders[edge_id] = 1
+                receivers[edge_id] = 1
+                edge_features[edge_id] = torch.full((num_edge_features,), 0)
 
         # 道路閉塞の情報を生成する
+        # 閉塞データのIDは−１する必要がある。
         if blockage_filename is not None and os.path.exists(blockage_filename):
             with open(blockage_filename) as f:
                 _, num_attrs, num_steps = map(int, f.readline().split('\t'))
-
                 blockage = torch.zeros(num_edges, num_steps)
                 for i, line in enumerate(f.readlines()):
                     elements = line.split(',')
-                    edge_id = int(elements[0])
-                    if edge_id in edge_id_map:
-                        edge_idx = edge_id_map[edge_id]
-                        blockage[edge_idx] = torch.tensor(list(map(float, elements[num_attrs:-1])))
+                    edge_id1 = int(elements[1])-1
+                    edge_id2 = int(elements[2])-1
+                    features = torch.tensor(list(map(float, elements[num_attrs:-1])))
+                    # ノーマル
+                    blockage[edge_id1] = features
+                    blockage[edge_id2] = features
+                    # リバース
+                    blockage[edge_id1+num_base_edges] = features
+                    blockage[edge_id2+num_base_edges] = features
 
         # ノードのIDマップの生成
         node_rid_map = {v: k for k, v in node_id_map.items()}
-        edge_rid_map = {v: k for k, v in edge_id_map.items()}
+
+        # with open('/home/owner/dev/gretel3/workspace/deep/b.csv', 'w') as f:
+        #     for i, e in enumerate(blockage[:num_base_edges]):
+        #         for ei in torch.where(e > 0)[0]:
+        #             f.write("{}\t{}\n".format(i+1, ei))
 
         return Graph(
             nodes=node_features,
@@ -854,9 +869,7 @@ class Graph:
             n_edge=num_edges,
             blockage=blockage,
             node_id_map=node_id_map,
-            edge_id_map=edge_id_map,
             node_rid_map=node_rid_map,
-            edge_rid_map=edge_rid_map,
         )
 
     def write_to_directory(self, directory: str):

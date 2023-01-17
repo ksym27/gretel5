@@ -53,8 +53,8 @@ def update(future: Future, graph, config=None):
     times = future.node_times
     obs = future.observations
     for node, time in zip(obs, times):
-        _, topk_nodes = torch.topk(node, 1)
-        nodes_with_time.append([topk_nodes[0], time.item(), 2])
+        topk_node = torch.argmax(node, 1)
+        nodes_with_time.append([topk_node[0], time.item(), 2])
 
     nodes = torch.unique_consecutive(future.nodes)
     pre_node, pre_time_idx, _ = nodes_with_time[-1]

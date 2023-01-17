@@ -47,7 +47,7 @@ def convert_o(lengths_filename, observations_filename, output_dir):
 
 def convert(filename1, filename2):
     start_time = 0
-    end_time = 3600
+    end_time = 3600 * 5
     interval = 6
 
     # データを読み込む
@@ -87,7 +87,7 @@ def convert(filename1, filename2):
 def rmse(filename1, filename2):
     interval = 6
     start = 0
-    end = 1000
+    end = 3600 * 5
     df = pd.read_csv(filename1, header = 0)
     for time in range(start, end, interval):
         sub = df[df['time'] == time]

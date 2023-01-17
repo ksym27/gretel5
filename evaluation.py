@@ -104,11 +104,11 @@ def main():
                 print(i)
 
 
-    # # マスクを出力
-    # mask_filename = os.path.join(chkpt_dir, 'mask.csv')
-    # with open(mask_filename, 'w') as f:
-    #     for i, m in enumerate(test_trajectories._mask):
-    #         f.write('%d,%d\n' % (i, m.item()))
+    # マスクを出力
+    mask_filename = os.path.join(chkpt_dir, 'mask.csv')
+    with open(mask_filename, 'w') as f:
+        for i, m in enumerate(test_trajectories._mask):
+            f.write('%d,%d\n' % (i, m.item()))
 
     print("end")
 

@@ -107,17 +107,16 @@ class Evaluator:
             node_times = node_times[:n_prefix]
 
             # 時間を設定する
-            time_first = node_times[0]
-            time_last = node_times[-1]
+            current_time = node_times[-1]
 
             # 最後のステップは１に強制する
             number_steps[-1] = 1
 
-            # ゴールの取得
-            tree = KDTree(trajectories.goals)
+            # 初期位置の格納
+            current_node = torch.argmax(observations[-1])[0]
 
             # ここからループさせる。
-            target_goal = None
+            shelter = None
             for i in range(config.max_iteration_prediction):
                 # マスクの作成
                 history = torch.arange(i, i + n_prefix, device=config.device)
@@ -126,9 +125,9 @@ class Evaluator:
                 targets = starts + 1
 
                 # 観測時間の閉塞データを取得する
-                blocked_edges = torch.unsqueeze(graph.blockage[:, time_first], 1)
+                blocked_edges = torch.unsqueeze(graph.blockage[:, current_time], 1)
                 # 時間情報を取得する
-                edge_times = time_first.repeat(graph.n_edge, 1)
+                edge_times = current_time.repeat(graph.n_edge, 1)
                 # エッジの属性を更新する
                 updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
 
@@ -153,7 +152,7 @@ class Evaluator:
                 prediction = predictions.squeeze()
 
                 # 車の閉塞を考慮する
-                blockage_edges = graph.blockage[:, time_last]
+                blockage_edges = graph.blockage[:, current_time]
                 blockage_idx = torch.where(blockage_edges != 0)
                 # 閉塞の確率を０に設定する
                 receivers = graph.receivers[blockage_idx]
@@ -169,11 +168,12 @@ class Evaluator:
                 predicted_nodes.append(next_node)
 
                 # ゴールに到着したかどうか確認する
-                coord = graph.coords[next_node]
-                distance, target_goal = tree.query(coord.tolist())
-                if distance <= config.max_distance_goals:
+                if next_node in graph.shelter:
+                    shelter = next_node
                     print("reach a goal", trajectory_idx)
                     break
+
+                current_node = next_node
 
                 # ステップ数を更新する
                 number_steps = torch.cat((number_steps, torch.tensor([1], device=config.device)))
@@ -183,11 +183,10 @@ class Evaluator:
                 predicted_node = predicted_node.unsqueeze(dim=0)
                 # 観測データを結合する
                 observations = torch.cat((observations, predicted_node))
-                time_last = time_last + 1
 
             # 返却用のオブジェクト生成
             predicted_nodes = torch.stack(predicted_nodes)
-            future = Future(trajectory_idx, observations, node_times, predicted_nodes, target_goal)
+            future = Future(trajectory_idx, observations, node_times, predicted_nodes, shelter)
 
         return future
 
@@ -201,9 +200,6 @@ class Evaluator:
         """Update the metrics for all trajectories in `trajectories`"""
         self.init_metrics()
         config = self.config
-
-        # 初期のグラフを保管する
-        init_graph = graph
 
         with torch.no_grad():
             for trajectory_idx in tqdm(range(len(trajectories))):
@@ -229,19 +225,14 @@ class Evaluator:
                 # 間引いたマスクを生成する
                 observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
 
+
+                if trajectory_idx == 349:
+                    trajectory_idx = trajectory_idx
+
                 # 時間情報を取得
                 node_times = trajectories.times(trajectory_idx)
-                time = node_times[0]
                 # 観測時間の閉塞データを取得する
-                blocked_edges = torch.unsqueeze(graph.blockage[:, time], 1)
-                # 時間情報を取得する
-                edge_times = time.repeat(graph.n_edge, 1)
-
-                # エッジの属性を更新する
-                updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
-
-                # エッジを更新したGraphを生成する
-                graph = init_graph.update(edges=updated_edges)
+                blockage = graph.blockage[:, node_times]
 
                 diffusion_graph = (
                     graph if not config.diffusion_self_loops else graph.add_self_loops()
@@ -255,7 +246,8 @@ class Evaluator:
                     starts=starts,
                     targets=targets,
                     pairwise_node_features=pairwise_features,
-                    number_steps=number_steps
+                    number_steps=number_steps,
+                    blockage=blockage
                 )
 
                 self.update_metrics(

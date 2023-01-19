@@ -1,10 +1,8 @@
 import copy
 import logging
 import os
-import random
 
 import networkx as nx
-import numpy as np
 import torch
 
 from utils import start_idx_from_lengths
@@ -28,8 +26,7 @@ class Trajectories:
             lengths: torch.Tensor,
             times: torch.Tensor = None,
             traversed_edges: torch.Tensor = None,
-            pairwise_node_distances: torch.Tensor = None,
-            goals = None
+            pairwise_node_distances: torch.Tensor = None
     ):
         """Create a new trajectories object, can be masked to have access to only a subset of the dataset
 
@@ -72,8 +69,6 @@ class Trajectories:
         # precomputed fields
         self._index_mapping = None
         self._num_trajectories = None
-
-        self.goals = goals
 
         # check that the number of legs equals sum of (trajectory lengths - 1 each)
         if traversed_edges is not None:
@@ -343,8 +338,7 @@ class Trajectories:
     @classmethod
     def read_from_files_for_deep(
             cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename, output,
-            obs_time_intervals,
-            goal_filename
+            obs_time_intervals
     ):
 
         # read trajectories lengths
@@ -362,14 +356,6 @@ class Trajectories:
         nx_graph = nx.DiGraph()
         nx_graph.add_edges_from(zip(numpify(graph.senders), numpify(graph.receivers), attr_dict))
         nx_graph.add_nodes_from(range(graph.n_node))
-
-        # goals
-        goals = []
-        with open(goal_filename) as f:
-            f.readline()
-            for i, line in enumerate(f.readlines()):
-                elements = line.split(",")
-                goals.append([elements[1], elements[2]])
 
         # read observations, assume fixed number of observations
         obs_weights, obs_indices = None, None
@@ -396,7 +382,7 @@ class Trajectories:
                 obs_weights[i, n] = float(elements[2 * n + 1])
 
                 time = float(elements[2 * n + 2]) / obs_time_intervals
-                obs_times[i, n] = int(round(time))
+                obs_times[i, n] = int(round(time)) - 1
 
                 # if no path file
                 if (i not in cum_num_steps) and output:
@@ -438,6 +424,5 @@ class Trajectories:
             num_nodes=num_nodes,
             lengths=lengths,
             traversed_edges=paths,
-            times=obs_times,
-            goals=goals
+            times=obs_times
         )

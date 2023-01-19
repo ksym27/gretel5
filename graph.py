@@ -33,7 +33,8 @@ class Graph:
                  n_edge=None,
                  blockage=None,
                  node_id_map=None,
-                 node_rid_map=None
+                 node_rid_map=None,
+                 shelter=None
                  ):
         self.senders = senders
         self.receivers = receivers
@@ -58,7 +59,7 @@ class Graph:
         self.blockage = blockage
         self.node_id_map = node_id_map
         self.node_rid_map = node_rid_map
-
+        self.shelter= shelter
 
     """ =========== PROPERTIES =========== """
 
@@ -783,7 +784,8 @@ class Graph:
     def read_from_files_for_deep(cls,
                                  nodes_filename: str,
                                  edges_filename: str,
-                                 blockage_filename: str = None):
+                                 blockage_filename: str = None,
+                                 shelter_filename: str = None):
 
         node_features = None
         edge_features = None
@@ -830,9 +832,9 @@ class Graph:
             # ループエッジの作成
             for i in range(num_nodes):
                 edge_id = num_base_edges*2+i
-                senders[edge_id] = 1
-                receivers[edge_id] = 1
-                edge_features[edge_id] = torch.full((num_edge_features,), 0)
+                senders[edge_id] = i
+                receivers[edge_id] = i
+                edge_features[edge_id] = torch.full((num_edge_features,), 1)
 
         # 道路閉塞の情報を生成する
         # 閉塞データのIDは−１する必要がある。
@@ -841,10 +843,10 @@ class Graph:
                 _, num_attrs, num_steps = map(int, f.readline().split('\t'))
                 blockage = torch.zeros(num_edges, num_steps)
                 for i, line in enumerate(f.readlines()):
-                    elements = line.split(',')
-                    edge_id1 = int(elements[1])-1
-                    edge_id2 = int(elements[2])-1
-                    features = torch.tensor(list(map(float, elements[num_attrs:-1])))
+                    elements = list(map(int,line.split(',')))
+                    edge_id1 = elements[1]-1
+                    edge_id2 = elements[2]-1
+                    features = torch.tensor(elements[num_attrs:-1])
                     # ノーマル
                     blockage[edge_id1] = features
                     blockage[edge_id2] = features
@@ -860,6 +862,17 @@ class Graph:
         #         for ei in torch.where(e > 0)[0]:
         #             f.write("{}\t{}\n".format(i+1, ei))
 
+        # 避難所のデータを読み込む
+        shelter = torch.zeros(num_nodes)
+        with open(shelter_filename) as f:
+            f.readline()
+            for i, line in enumerate(f.readlines()):
+                elements = line.split(",")
+                shelter[node_id_map[int(elements[0])]] = 1
+
+        # ノードの特徴量として避難所のフラグを追加する
+        node_features = torch.cat([node_features, shelter.reshape(-1, 1)], axis=1)
+
         return Graph(
             nodes=node_features,
             edges=edge_features,
@@ -870,6 +883,7 @@ class Graph:
             blockage=blockage,
             node_id_map=node_id_map,
             node_rid_map=node_rid_map,
+            shelter=shelter
         )
 
     def write_to_directory(self, directory: str):

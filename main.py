@@ -61,7 +61,8 @@ def load_data(
         graph = Graph.read_from_files_for_deep(
             nodes_filename=os.path.join(input_dir, "nodes.txt"),
             edges_filename=os.path.join(input_dir, "edges.txt"),
-            blockage_filename=os.path.join(input_dir, "blockage.csv")
+            blockage_filename=os.path.join(input_dir, "blockage.csv"),
+            shelter_filename=os.path.join(input_dir, "shelter.csv")
         )
 
         trajectories = Trajectories.read_from_files_for_deep(
@@ -72,8 +73,7 @@ def load_data(
             graph=graph,
             paths_filename=os.path.join(input_dir, "paths.txt"),
             output=config.create_path_file,
-            obs_time_intervals=config.obs_time_intervals,
-            goal_filename=os.path.join(input_dir, "hinan.csv")
+            obs_time_intervals=config.obs_time_intervals
         )
 
     pairwise_node_features = load_tensor(config.device, input_dir, "pairwise_node_features.pt")
@@ -211,7 +211,7 @@ def compute_loss(
         rw_weights: torch.Tensor,
         trajectory_idx: int,
 ):
-    """Compute the †raining loss
+    """Compute the †raining lossread_from_files
 
     Args:
         typ (str): loss flag from configuration, can be RMSE, dot_loss, log_dot_loss, target_only or nll_loss
@@ -318,10 +318,7 @@ def create_model(graph: Graph, cross_features: Optional[torch.Tensor], config: C
             + d_edge
             + (d_node if config.latent_transformer_see_target else 0)
             + (2 * d_cross if config.latent_transformer_see_target else 0)
-            # GCNに追加する
-            + (2 if config.execute_deep_process else 0)
-            # # MLPに追加する特徴の数(道路＋時間)
-            # + (2 * config.number_observations if config.execute_deep_process else 0)
+            + (1 if config.execute_deep_process else 0)
     )
     direction_edge_mlp = MLP(d_in_direction_mlp, 1)
 
@@ -358,9 +355,6 @@ def train_epoch(
     if config.shuffle_samples:
         np.random.shuffle(trajectories_shuffle_indices)
 
-    # 初期のグラフを保管する
-    init_graph = graph
-
     for iteration, batch_start in enumerate(
             range(0, len(trajectories_shuffle_indices) - config.batch_size + 1, config.batch_size)
     ):
@@ -392,17 +386,18 @@ def train_epoch(
             observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
             # 時間情報を取得
             node_times = train_trajectories.times(trajectory_idx)
-            train_time = node_times[0]
+            # train_time = node_times[0]
+            # # 観測時間の閉塞データを取得する
+            # blocked_edges = torch.unsqueeze(graph.blockage[:, train_time], 1)
+            # # 時間情報を取得する
+            # edge_times = train_time.repeat(graph.n_edge, 1)
+
+            # # エッジの属性を更新する
+            # updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
+
             # 観測時間の閉塞データを取得する
-            blocked_edges = torch.unsqueeze(graph.blockage[:, train_time], 1)
-            # 時間情報を取得する
-            edge_times = train_time.repeat(graph.n_edge, 1)
+            blockage = graph.blockage[:, node_times]
 
-            # エッジの属性を更新する
-            updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
-
-            # エッジを更新したGraphを生成する
-            graph = init_graph.update(edges=updated_edges)
             #
             diffusion_graph = graph if not config.diffusion_self_loops else graph.add_self_loops()
 
@@ -414,7 +409,8 @@ def train_epoch(
                 starts=starts,
                 targets=targets,
                 pairwise_node_features=pairwise_node_features,
-                number_steps=number_steps
+                number_steps=number_steps,
+                blockage=blockage
             )
 
             print_num_preds += starts.shape[0]

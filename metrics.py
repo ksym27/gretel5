@@ -1,5 +1,6 @@
 from collections import defaultdict, OrderedDict
 
+import numpy as np
 import torch
 
 from torch_scatter import scatter_max
@@ -89,9 +90,6 @@ class Evaluator:
         self.init_metrics()
         config = self.config
 
-        # 初期のグラフを保管する
-        init_graph = graph
-
         # 予測されたノードを格納する
         predicted_nodes = []
 
@@ -106,14 +104,11 @@ class Evaluator:
             number_steps = number_steps_[:n_prefix]
             node_times = node_times[:n_prefix]
 
-            # 時間を設定する
-            current_time = node_times[-1]
-
             # 最後のステップは１に強制する
             number_steps[-1] = 1
 
             # 初期位置の格納
-            current_node = torch.argmax(observations[-1])[0]
+            current_node = torch.argmax(observations[-1])
 
             # ここからループさせる。
             shelter = None
@@ -125,15 +120,9 @@ class Evaluator:
                 targets = starts + 1
 
                 # 観測時間の閉塞データを取得する
-                blocked_edges = torch.unsqueeze(graph.blockage[:, current_time], 1)
-                # 時間情報を取得する
-                edge_times = current_time.repeat(graph.n_edge, 1)
-                # エッジの属性を更新する
-                updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
+                blockage = graph.blockage[:, node_times]
 
-                # エッジを更新したGraphを生成する
-                graph = init_graph.update(edges=updated_edges)
-
+                #
                 diffusion_graph = (
                     graph if not config.diffusion_self_loops else graph.add_self_loops()
                 )
@@ -146,23 +135,26 @@ class Evaluator:
                     starts=starts,
                     targets=targets,
                     pairwise_node_features=None,
-                    number_steps=number_steps
+                    number_steps=number_steps,
+                    blockage=blockage
                 )
 
+                # 次の移動先を取得する
+                next_node = current_node
                 prediction = predictions.squeeze()
 
-                # 車の閉塞を考慮する
-                blockage_edges = graph.blockage[:, current_time]
-                blockage_idx = torch.where(blockage_edges != 0)
-                # 閉塞の確率を０に設定する
-                receivers = graph.receivers[blockage_idx]
-                prediction[receivers] = 0
-
-                # ノードインデックスを取得
-                next_node = torch.where(observations[-1] != 0)[0].squeeze()
                 if torch.count_nonzero(prediction, 0) != 0:
-                    _, topk_nodes = torch.topk(prediction, 1)
-                    next_node = topk_nodes.squeeze()
+                    enabled_edge = torch.where(graph.senders == current_node)
+                    blockage_edge = torch.where(blockage[:,-1] == 0)
+
+                    enabled_edge = torch.tensor([e for e in enabled_edge[0] if e in blockage_edge[0]], device=config.device)
+                    enabled_node = graph.receivers[enabled_edge]
+
+                    prediction = prediction[enabled_node]
+
+                    index = prediction.multinomial(num_samples=1, replacement=True)
+
+                    next_node= enabled_node[index]
 
                 # 　予測結果を保存する
                 predicted_nodes.append(next_node)
@@ -173,7 +165,11 @@ class Evaluator:
                     print("reach a goal", trajectory_idx)
                     break
 
+                #
                 current_node = next_node
+
+                #　到達時間をどうにかしないといけない
+                node_times = torch.cat((node_times, node_times[-1].reshape(1)))
 
                 # ステップ数を更新する
                 number_steps = torch.cat((number_steps, torch.tensor([1], device=config.device)))

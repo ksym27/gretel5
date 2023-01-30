@@ -45,36 +45,23 @@ def load_data(
 
     input_dir = os.path.join(config.workspace, config.input_directory)
 
-    if not config.execute_deep_process:
-        graph = Graph.read_from_files(
-            nodes_filename=os.path.join(input_dir, "nodes.txt"),
-            edges_filename=os.path.join(input_dir, "edges.txt"),
-        )
+    graph = Graph.read_from_files_for_deep(
+        nodes_filename=os.path.join(input_dir, "nodes.txt"),
+        edges_filename=os.path.join(input_dir, "edges.txt"),
+        blockage_filename=os.path.join(input_dir, "blockage.csv"),
+        shelter_filename=os.path.join(input_dir, "shelter.txt")
+    )
 
-        trajectories = Trajectories.read_from_files(
-            lengths_filename=os.path.join(input_dir, "lengths.txt"),
-            observations_filename=os.path.join(input_dir, "observations.txt"),
-            num_nodes=graph.n_node,
-            paths_filename=os.path.join(input_dir, "paths.txt"),
-        )
-    else:
-        graph = Graph.read_from_files_for_deep(
-            nodes_filename=os.path.join(input_dir, "nodes.txt"),
-            edges_filename=os.path.join(input_dir, "edges.txt"),
-            blockage_filename=os.path.join(input_dir, "blockage.csv"),
-            shelter_filename=os.path.join(input_dir, "shelter.csv")
-        )
-
-        trajectories = Trajectories.read_from_files_for_deep(
-            lengths_filename=os.path.join(input_dir, "lengths.txt"),
-            observations_filename=os.path.join(input_dir, "observations_6sec.txt"),
-            num_nodes=graph.n_node,
-            node_id_map=graph.node_id_map,
-            graph=graph,
-            paths_filename=os.path.join(input_dir, "paths.txt"),
-            output=config.create_path_file,
-            obs_time_intervals=config.obs_time_intervals
-        )
+    trajectories = Trajectories.read_from_files_for_deep(
+        lengths_filename=os.path.join(input_dir, "lengths.txt"),
+        observations_filename=os.path.join(input_dir, "observations_6sec.txt"),
+        num_nodes=graph.n_node,
+        node_id_map=graph.node_id_map,
+        graph=graph,
+        paths_filename=os.path.join(input_dir, "paths.txt"),
+        output=config.create_path_file,
+        obs_time_intervals=config.obs_time_intervals
+    )
 
     pairwise_node_features = load_tensor(config.device, input_dir, "pairwise_node_features.pt")
     pairwise_distances = load_tensor(config.device, input_dir, "shortest-path-distance-matrix.pt")

@@ -6,11 +6,11 @@ name = deep-nll
 workspace = workspace
 dataset = deep
 input_directory = deep
-max_trajectory_length = 500
+max_trajectory_length = 300
 min_trajectory_length = 12
 extract_coord_features = true
 
-k_closest_nodes = 5
+k_closest_nodes = 7
 
 [training]
 
@@ -32,7 +32,7 @@ train_test_ratio = 0.8/0.2
 overfit1 = False
 
 shuffle_samples = true
-number_epoch = 100
+number_epoch = 200
 seed = 0
 patience = 8
 
@@ -76,8 +76,8 @@ execute_deep_process = true
 num_observed_samples = 100
 create_path_file = true
 obs_time_intervals = 6
-chechpoint_file_name = 0020.pt
+chechpoint_file_name = 0150.pt
 max_distance_goals = 50
-max_iteration_prediction = 250
+max_iteration_prediction = 3000
 prediction_file_name = prediction_result.csv
 agent_speed = 1.11

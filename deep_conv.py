@@ -4,13 +4,14 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 import numpy as np
 
+
 def convert_o(lengths_filename, observations_filename, output_dir):
     lengths = []
     with open(lengths_filename) as f:
         reader = csv.reader(f, delimiter='\t')
         for row in reader:
             lengths.append(int(row[1]))
-    lines = None
+
     with open(observations_filename) as f:
         f.readline()
         lines = f.readlines()
@@ -32,18 +33,20 @@ def convert_o(lengths_filename, observations_filename, output_dir):
         total += len(new_lines)
         pos += length
 
-    lengths_filename = os.path.join(output_dir, "l.txt")
-    with open(lengths_filename, 'w') as f:
+    step_size = 3
+    observations_filename = os.path.join(output_dir, "observations_6sec.txt")
+    lengths_filename = os.path.join(output_dir, "lengths.txt")
+    with open(observations_filename, 'w') as f1, open(lengths_filename, 'w') as f2:
+        f1.write("%d\t1\n" % total)
+        length = 0
         for i, lines in enumerate(data):
-            f.write("%d\t%d\n" % (i, len(lines)))
-
-    observations_filename = os.path.join(output_dir, "o.txt")
-    with open(observations_filename, 'w') as f:
-        f.write("%d\t1\n" % total)
-        for i, lines in enumerate(data):
-            f.writelines(lines)
+            if i % step_size == 0:
+                f.writelines(lines)
+                length = step_size + 1
+        f.write("%d\t%d\n" % (i, length))
 
     return None
+
 
 def convert(filename1, filename2):
     start_time = 0
@@ -71,7 +74,7 @@ def convert(filename1, filename2):
                     nodes_time.append([pre_id, pre_node, str(i), '1'])
             # 前を埋める
             for i in range(start_time, int(time), interval):
-                nodes_time.append([id, node, str(i),'1'])
+                nodes_time.append([id, node, str(i), '1'])
 
         nodes_time.append([id, node, time, '0'])
         pre_id, pre_node, pre_time, pre_goal = id, node, int(time), goal
@@ -84,18 +87,19 @@ def convert(filename1, filename2):
 
     return None
 
+
 def rmse(filename1, filename2):
     interval = 6
     start = 0
     end = 3600 * 5
-    df = pd.read_csv(filename1, header = 0)
+    df = pd.read_csv(filename1, header=0)
     for time in range(start, end, interval):
         sub = df[df['time'] == time]
         rmse = np.sqrt(mean_squared_error(sub['true'], sub['pred']))
         print(time, rmse)
 
-
     return None
+
 
 if __name__ == "__main__":
     path1 = "/home/owner/dev/gretel3/workspace/deep/lengths.txt.b"
@@ -103,9 +107,8 @@ if __name__ == "__main__":
     path3 = "/home/owner/dev/gretel3/workspace/deep/"
     convert_o(path1, path2, path3)
 
-
-    # # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result.csv"
-    # # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result_alloc.csv"
+    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result.csv"
+    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result_alloc.csv"
     # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true.csv"
     # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true_alloc.csv"
     # convert(path1, path2)

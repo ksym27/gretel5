@@ -59,7 +59,14 @@ class Graph:
         self.blockage = blockage
         self.node_id_map = node_id_map
         self.node_rid_map = node_rid_map
-        self.shelter= shelter
+        self.shelter = shelter
+
+        # create NetworkX graph
+        attr = list(enumerate(numpify(self.edges[:, 0])))
+        attr_dict = [{'id': i, 'weight': j} for i, j in attr]
+        self.nx_graph = nx.DiGraph()
+        self.nx_graph.add_edges_from(zip(numpify(self.senders), numpify(self.receivers), attr_dict))
+        self.nx_graph.add_nodes_from(range(self.n_node))
 
     """ =========== PROPERTIES =========== """
 
@@ -790,6 +797,7 @@ class Graph:
         node_features = None
         edge_features = None
         node_id_map = {}
+        edge_id_map = {}
         blockage = None
 
         # read node features
@@ -823,11 +831,15 @@ class Graph:
                 senders[i] = node_id_map[int(elements[1])]
                 receivers[i] = node_id_map[int(elements[2])]
                 edge_features[i] = torch.tensor(list(map(float, elements[3:])))
+
                 # reverse direction
                 r_id = num_base_edges+i
                 senders[r_id] = receivers[i]
                 receivers[r_id] = senders[i]
                 edge_features[r_id] = edge_features[i]
+
+                # register id
+                edge_id_map[int(elements[0])] = i
 
             # ループエッジの作成
             for i in range(num_nodes):
@@ -844,15 +856,19 @@ class Graph:
                 blockage = torch.zeros(num_edges, num_steps)
                 for i, line in enumerate(f.readlines()):
                     elements = list(map(int,line.split(',')))
-                    edge_id1 = elements[1]-1
-                    edge_id2 = elements[2]-1
+                    edge_id1 = elements[1]
+                    edge_id2 = elements[2]
                     features = torch.tensor(elements[num_attrs:-1])
                     # ノーマル
-                    blockage[edge_id1] = features
-                    blockage[edge_id2] = features
+                    if edge_id1 in edge_id_map:
+                        edge_id = edge_id_map[edge_id1]
+                        blockage[edge_id] = features
+                        blockage[edge_id + num_base_edges] = features
                     # リバース
-                    blockage[edge_id1+num_base_edges] = features
-                    blockage[edge_id2+num_base_edges] = features
+                    if edge_id2 in edge_id_map:
+                        edge_id = edge_id_map[edge_id2]
+                        blockage[edge_id] = features
+                        blockage[edge_id+num_base_edges] = features
 
         # ノードのIDマップの生成
         node_rid_map = {v: k for k, v in node_id_map.items()}
@@ -865,9 +881,8 @@ class Graph:
         # 避難所のデータを読み込む
         shelter = torch.zeros(num_nodes)
         with open(shelter_filename) as f:
-            f.readline()
             for i, line in enumerate(f.readlines()):
-                elements = line.split(",")
+                elements = line.split("\t")
                 shelter[node_id_map[int(elements[0])]] = 1
 
         # ノードの特徴量として避難所のフラグを追加する

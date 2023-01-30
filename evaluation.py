@@ -10,6 +10,7 @@ from metrics import Evaluator
 from main import load_data, create_optimizer, create_model, evaluate
 import deep
 
+
 def evaluate(
         model,
         graph,
@@ -96,13 +97,15 @@ def main():
     with open(output_filename, 'w') as f:
         for i in range(len(test_trajectories)):
             future = evaluate(model, graph, test_trajectories, i, create_evaluator)
-            nodes_with_time = deep.update(future, graph, config)
-            for n, t, p in nodes_with_time:
-                node = graph.node_rid_map[n.item()]
-                f.write('%d,%d,%d,%d,%d\n' % (ids[i], node, t * config.obs_time_intervals, p, future.goal + 1))
-            if i % 10 == 0:
-                print(i)
-
+            for j in range(len(future.nodes)):
+                time = future.time[j].item()
+                node = graph.node_rid_map[future.nodes[j].item()]
+                f.write('%d,%d,%d\n' % (ids[i], node, time * config.obs_time_intervals))
+            # if i % 10 == 0:
+            #     print(i)
+            if i > 10:
+                break
+            print(i)
 
     # マスクを出力
     mask_filename = os.path.join(chkpt_dir, 'mask.csv')

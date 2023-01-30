@@ -351,11 +351,7 @@ class Trajectories:
         )
 
         # create NetworkX graph
-        attr = list(enumerate(numpify(graph.edges[:, 0])))
-        attr_dict = [{'id': i, 'weight': j} for i, j in attr]
-        nx_graph = nx.DiGraph()
-        nx_graph.add_edges_from(zip(numpify(graph.senders), numpify(graph.receivers), attr_dict))
-        nx_graph.add_nodes_from(range(graph.n_node))
+        nx_graph = graph.nx_graph
 
         # read observations, assume fixed number of observations
         obs_weights, obs_indices = None, None

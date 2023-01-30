@@ -1,12 +1,11 @@
 from collections import defaultdict, OrderedDict
 
-import numpy as np
 import torch
 
 from torch_scatter import scatter_max
 from tqdm import tqdm
 from tabulate import tabulate
-from scipy.spatial import KDTree
+import networkx as nx
 
 from future import Future
 from utils import generate_masks
@@ -90,9 +89,6 @@ class Evaluator:
         self.init_metrics()
         config = self.config
 
-        # 予測されたノードを格納する
-        predicted_nodes = []
-
         with torch.no_grad():
             observations_ = trajectories[trajectory_idx]
             number_steps_ = trajectories.leg_lengths(trajectory_idx)
@@ -104,24 +100,27 @@ class Evaluator:
             number_steps = number_steps_[:n_prefix]
             node_times = node_times[:n_prefix]
 
-            # 最後のステップは１に強制する
-            number_steps[-1] = 1
-
             # 初期位置の格納
             current_node = torch.argmax(observations[-1])
 
+            # 予測されたノードを格納する
+            predicted_nodes = [current_node]
+
+            # ステップ数を登録する
+            step_interval = 1
+            number_steps[-1] = step_interval
+
             # ここからループさせる。
-            shelter = None
+            prediction_interval = 1
             for i in range(config.max_iteration_prediction):
                 # マスクの作成
                 history = torch.arange(i, i + n_prefix, device=config.device)
                 observed = torch.unsqueeze(history, 0)
                 starts = torch.unsqueeze(history[-1], 0)
-                targets = starts + 1
+                targets = starts + prediction_interval
 
                 # 観測時間の閉塞データを取得する
                 blockage = graph.blockage[:, node_times]
-
                 #
                 diffusion_graph = (
                     graph if not config.diffusion_self_loops else graph.add_self_loops()
@@ -144,35 +143,55 @@ class Evaluator:
                 prediction = predictions.squeeze()
 
                 if torch.count_nonzero(prediction, 0) != 0:
-                    enabled_edge = torch.where(graph.senders == current_node)
-                    blockage_edge = torch.where(blockage[:,-1] == 0)
+                    # enabled_edge = torch.where(graph.senders == current_node)
+                    # blockage_edge = torch.where(blockage[:,-1] == 0)
+                    #
+                    # enabled_edge = torch.tensor([e for e in enabled_edge[0] if e in blockage_edge[0]], device=config.device)
+                    # enabled_node = graph.receivers[enabled_edge]
+                    #
+                    # prediction = prediction[enabled_node]
+                    # index = prediction.multinomial(num_samples=1, replacement=True)
+                    #
+                    # next_node = enabled_node[index].squeeze()
 
-                    enabled_edge = torch.tensor([e for e in enabled_edge[0] if e in blockage_edge[0]], device=config.device)
-                    enabled_node = graph.receivers[enabled_edge]
-
-                    prediction = prediction[enabled_node]
-
-                    index = prediction.multinomial(num_samples=1, replacement=True)
-
-                    next_node= enabled_node[index]
+                    next_node = prediction.multinomial(num_samples=1, replacement=True)
+                    next_node = next_node[0]
 
                 # 　予測結果を保存する
                 predicted_nodes.append(next_node)
 
-                # ゴールに到着したかどうか確認する
-                if next_node in graph.shelter:
-                    shelter = next_node
-                    print("reach a goal", trajectory_idx)
-                    break
+                # 時間情報を更新する
+                travel_steps = 10
+                # nx_graph = graph.nx_graph
+                if current_node != next_node:
+                    edge = graph.edge(current_node, next_node)
+                    # if len(edge) == 0:
+                    #     path_nodes = nx.shortest_path(nx_graph, source=current_node.item(), target=next_node.item(), weight='weight')
+                    #     n_path_nodes = len(path_nodes)
+                    #     edges = [nx_graph.get_edge_data(path_nodes[i - 1], path_nodes[i])['weight'] for i in range(1, n_path_nodes)]
+                    #     travel_distance = sum(edges)
+                    # else:
+                    #     travel_distance = edge[0].item()
 
-                #
+                    travel_distance = edge[0].item()
+                    travel_time = travel_distance / config.agent_speed
+                    travel_steps = round(travel_time / config.obs_time_intervals + 0.5)
+
+                travel_steps = node_times[-1] + travel_steps
+                node_times = torch.cat([node_times, travel_steps.reshape(1)])
+
+                # 現在地点を更新する
                 current_node = next_node
 
-                #　到達時間をどうにかしないといけない
-                node_times = torch.cat((node_times, node_times[-1].reshape(1)))
+                # ゴールに到着したかどうか確認する
+                if graph.shelter[next_node] != 0:
+                    print("reach a goal", trajectory_idx)
+
+                if graph.blockage.shape[1] <= travel_steps:
+                    break
 
                 # ステップ数を更新する
-                number_steps = torch.cat((number_steps, torch.tensor([1], device=config.device)))
+                number_steps = torch.cat((number_steps, torch.tensor([step_interval], device=config.device)))
                 # observationsを更新する
                 predicted_node = torch.zeros(graph.n_node, device=config.device)
                 predicted_node[next_node] = 1
@@ -181,8 +200,8 @@ class Evaluator:
                 observations = torch.cat((observations, predicted_node))
 
             # 返却用のオブジェクト生成
-            predicted_nodes = torch.stack(predicted_nodes)
-            future = Future(trajectory_idx, observations, node_times, predicted_nodes, shelter)
+            predicted_nodes = torch.tensor(predicted_nodes)
+            future = Future(trajectory_idx, predicted_nodes, node_times[n_prefix-1:])
 
         return future
 
@@ -220,10 +239,6 @@ class Evaluator:
 
                 # 間引いたマスクを生成する
                 observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
-
-
-                if trajectory_idx == 349:
-                    trajectory_idx = trajectory_idx
 
                 # 時間情報を取得
                 node_times = trajectories.times(trajectory_idx)

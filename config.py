@@ -62,7 +62,7 @@ class Config(object):
 
     checkpoint_directory: str = "chkpt"
     enable_checkpointing: bool = True
-    chechpoint_every_num_epoch: int = 5
+    checkpoint_every_num_epoch: int = 5
     restore_from_checkpoint: bool = False
     compute_baseline: bool = True
 
@@ -84,13 +84,12 @@ class Config(object):
 
     num_observed_samples: int = 10
     create_path_file: bool = False
-    execute_deep_process: bool = False
     obs_time_intervals: int = 1
-    chechpoint_file_name: str = "0001.pt"
-    max_distance_goals: int = 100
+    checkpoint_file_name: str = "0001.pt"
     max_iteration_prediction: int = 100
     prediction_file_name: str = ""
     agent_speed: float = 1.0
+    deep_temp_name: str = "temp"
 
     def load_from_file(self, filename: str):
         """Load configuration fiels from a file

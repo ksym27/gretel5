@@ -7,10 +7,10 @@ workspace = workspace
 dataset = deep
 input_directory = deep
 max_trajectory_length = 300
-min_trajectory_length = 12
+min_trajectory_length = 5
 extract_coord_features = true
 
-k_closest_nodes = 7
+k_closest_nodes = 4
 
 [training]
 
@@ -26,18 +26,18 @@ device = cuda:0
 lr = .001
 momentum = 0.5
 batch_size = 5
-train_test_ratio = 0.8/0.2
+train_test_ratio = 0.7/0.3
 
 ; train and test only on the first trajectory (requires batch_size=1)
 overfit1 = False
 
 shuffle_samples = true
 number_epoch = 200
-seed = 0
+seed = 20
 patience = 8
 
 [model]
-number_observations = 6
+number_observations = 4
 self_loop_weight = 0.01
 diffusion_k_hops = 20
 diffusion_hidden_dimension = 1
@@ -67,17 +67,16 @@ compute_baseline = false
 [checkpoint]
 enable_checkpointing = True
 checkpoint_directory = chkpt
-chechpoint_every_num_epoch = 10
-restore_from_checkpoint = False
+checkpoint_every_num_epoch = 10
+restore_from_checkpoint = false
 
 
 [deep]
-execute_deep_process = true
 num_observed_samples = 100
 create_path_file = true
 obs_time_intervals = 6
-chechpoint_file_name = 0150.pt
-max_distance_goals = 50
-max_iteration_prediction = 3000
+checkpoint_file_name = 0180.pt
+max_iteration_prediction = 600
 prediction_file_name = prediction_result.csv
 agent_speed = 1.11
+deep_temp_name = deep-nll-temp

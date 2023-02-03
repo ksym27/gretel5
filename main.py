@@ -53,8 +53,8 @@ def load_data(
     )
 
     trajectories = Trajectories.read_from_files_for_deep(
-        lengths_filename=os.path.join(input_dir, "lengths.txt"),
-        observations_filename=os.path.join(input_dir, "observations_6sec.txt"),
+        lengths_filename=os.path.join(input_dir, "lengths_s.txt"),
+        observations_filename=os.path.join(input_dir, "observations_6sec_s.txt"),
         num_nodes=graph.n_node,
         node_id_map=graph.node_id_map,
         graph=graph,
@@ -109,7 +109,7 @@ def load_data(
         n_test = int(test_prop * len(valid_trajectories_idx))
 
         # 念の為、シャッフルしておく。
-        torch.random.manual_seed(10)
+        torch.random.manual_seed(20)
         idx = torch.randperm(valid_trajectories_idx.shape[0])
         valid_trajectories_idx = valid_trajectories_idx[idx].view(-1)
 
@@ -285,7 +285,7 @@ def create_model(graph: Graph, cross_features: Optional[torch.Tensor], config: C
             raise ValueError(f"{name} features should be scalar or vectors")
 
     d_node = dimension(graph.nodes, "graph.nodes")
-    d_edge = dimension(graph.edges, "graph.edges")
+    d_edge = dimension(graph.edges, "graph.edges") + 1  # 閉鎖属性を追加する
     d_cross = cross_features.shape[2] if cross_features is not None else 0
 
     diffusion_graph_transformer = None
@@ -305,7 +305,7 @@ def create_model(graph: Graph, cross_features: Optional[torch.Tensor], config: C
             + d_edge
             + (d_node if config.latent_transformer_see_target else 0)
             + (2 * d_cross if config.latent_transformer_see_target else 0)
-            + (1 if config.execute_deep_process else 0)
+            + 1
     )
     direction_edge_mlp = MLP(d_in_direction_mlp, 1)
 
@@ -373,24 +373,18 @@ def train_epoch(
             observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
             # 時間情報を取得
             node_times = train_trajectories.times(trajectory_idx)
-            # train_time = node_times[0]
-            # # 観測時間の閉塞データを取得する
-            # blocked_edges = torch.unsqueeze(graph.blockage[:, train_time], 1)
-            # # 時間情報を取得する
-            # edge_times = train_time.repeat(graph.n_edge, 1)
-
-            # # エッジの属性を更新する
-            # updated_edges = torch.cat([init_graph.edges, blocked_edges, edge_times], 1)
 
             # 観測時間の閉塞データを取得する
             blockage = graph.blockage[:, node_times]
 
+            lp_graph = graph.update(edges=torch.cat([graph.edges, torch.unsqueeze(blockage[:, 0], dim=1)], dim=1))
+
             #
-            diffusion_graph = graph if not config.diffusion_self_loops else graph.add_self_loops()
+            diffusion_graph = lp_graph if not config.diffusion_self_loops else lp_graph.add_self_loops()
 
             predictions, potentials, rw_weights = model(
                 observations,
-                graph,
+                lp_graph,
                 diffusion_graph,
                 observed=observed,
                 starts=starts,
@@ -471,6 +465,7 @@ def main():
     use_validation_set = len(valid_trajectories) > 0
     graph = graph.to(config.device)
 
+
     given_as_target, siblings_nodes = None, None
     if config.dataset == "wikispeedia":
         given_as_target, siblings_nodes = load_wiki_data(config)
@@ -509,7 +504,7 @@ def main():
 
     if config.restore_from_checkpoint:
         chkpt_file_path = os.path.join(config.workspace, config.checkpoint_directory, config.name,
-                                       config.chechpoint_file_name)
+                                       config.checkpoint_file_name)
         checkpoint_data = torch.load(chkpt_file_path)
         model.load_state_dict(checkpoint_data["model_state_dict"])
         optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
@@ -590,7 +585,7 @@ def main():
         #         dataset="EVAL",
         #     )
 
-        if config.enable_checkpointing and epoch % config.chechpoint_every_num_epoch == 0:
+        if config.enable_checkpointing and epoch % config.checkpoint_every_num_epoch == 0:
             print("Checkpointing...")
             directory = os.path.join(config.workspace, config.checkpoint_directory, config.name)
             chkpt_file = os.path.join(directory, f"{epoch:04d}.pt")

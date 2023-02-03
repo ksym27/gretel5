@@ -107,28 +107,31 @@ class Evaluator:
             predicted_nodes = [current_node]
 
             # ステップ数を登録する
-            step_interval = 1
-            number_steps[-1] = step_interval
+            n_next_steps = 5
+            number_steps[-1] = n_next_steps
 
             # ここからループさせる。
-            prediction_interval = 1
+            next_pos = 1
             for i in range(config.max_iteration_prediction):
                 # マスクの作成
                 history = torch.arange(i, i + n_prefix, device=config.device)
                 observed = torch.unsqueeze(history, 0)
                 starts = torch.unsqueeze(history[-1], 0)
-                targets = starts + prediction_interval
+                targets = starts + next_pos
 
                 # 観測時間の閉塞データを取得する
                 blockage = graph.blockage[:, node_times]
+
+                lp_graph = graph.update(edges=torch.cat([graph.edges, torch.unsqueeze(blockage[:, 0], dim=1)], dim=1))
+
                 #
                 diffusion_graph = (
-                    graph if not config.diffusion_self_loops else graph.add_self_loops()
+                    lp_graph if not config.diffusion_self_loops else lp_graph.add_self_loops()
                 )
 
                 predictions, _, rw_weights = model(
                     observations,
-                    graph,
+                    lp_graph,
                     diffusion_graph,
                     observed=observed,
                     starts=starts,
@@ -157,23 +160,18 @@ class Evaluator:
                     next_node = prediction.multinomial(num_samples=1, replacement=True)
                     next_node = next_node[0]
 
-                # 　予測結果を保存する
+
+                # 予測結果を保存する
                 predicted_nodes.append(next_node)
 
                 # 時間情報を更新する
                 travel_steps = 10
-                # nx_graph = graph.nx_graph
                 if current_node != next_node:
-                    edge = graph.edge(current_node, next_node)
-                    # if len(edge) == 0:
-                    #     path_nodes = nx.shortest_path(nx_graph, source=current_node.item(), target=next_node.item(), weight='weight')
-                    #     n_path_nodes = len(path_nodes)
-                    #     edges = [nx_graph.get_edge_data(path_nodes[i - 1], path_nodes[i])['weight'] for i in range(1, n_path_nodes)]
-                    #     travel_distance = sum(edges)
-                    # else:
-                    #     travel_distance = edge[0].item()
+                    path_nodes = nx.shortest_path(lp_graph.nx_graph, source=current_node.item(), target=next_node.item(), weight='weight')
+                    n_path_nodes = len(path_nodes)
+                    edges = [lp_graph.nx_graph.get_edge_data(path_nodes[i - 1], path_nodes[i])['weight'] for i in range(1, n_path_nodes)]
+                    travel_distance = sum(edges)
 
-                    travel_distance = edge[0].item()
                     travel_time = travel_distance / config.agent_speed
                     travel_steps = round(travel_time / config.obs_time_intervals + 0.5)
 
@@ -184,16 +182,17 @@ class Evaluator:
                 current_node = next_node
 
                 # ゴールに到着したかどうか確認する
-                if graph.shelter[next_node] != 0:
+                if lp_graph.shelter[next_node] != 0:
                     print("reach a goal", trajectory_idx)
+                    break
 
-                if graph.blockage.shape[1] <= travel_steps:
+                if lp_graph.blockage.shape[1] <= travel_steps:
                     break
 
                 # ステップ数を更新する
-                number_steps = torch.cat((number_steps, torch.tensor([step_interval], device=config.device)))
+                number_steps = torch.cat((number_steps, torch.tensor([n_next_steps], device=config.device)))
                 # observationsを更新する
-                predicted_node = torch.zeros(graph.n_node, device=config.device)
+                predicted_node = torch.zeros(lp_graph.n_node, device=config.device)
                 predicted_node[next_node] = 1
                 predicted_node = predicted_node.unsqueeze(dim=0)
                 # 観測データを結合する
@@ -215,7 +214,6 @@ class Evaluator:
         """Update the metrics for all trajectories in `trajectories`"""
         self.init_metrics()
         config = self.config
-
         with torch.no_grad():
             for trajectory_idx in tqdm(range(len(trajectories))):
                 observations = trajectories[trajectory_idx]
@@ -245,13 +243,15 @@ class Evaluator:
                 # 観測時間の閉塞データを取得する
                 blockage = graph.blockage[:, node_times]
 
+                lp_graph = graph.update(edges=torch.cat([graph.edges, torch.unsqueeze(blockage[:,0], dim=1)], dim=1))
+
                 diffusion_graph = (
-                    graph if not config.diffusion_self_loops else graph.add_self_loops()
+                    lp_graph if not config.diffusion_self_loops else lp_graph.add_self_loops()
                 )
 
                 predictions, _, rw_weights = model(
                     observations,
-                    graph,
+                    lp_graph,
                     diffusion_graph,
                     observed=observed,
                     starts=starts,
@@ -263,7 +263,7 @@ class Evaluator:
 
                 self.update_metrics(
                     trajectories,
-                    graph,
+                    lp_graph,
                     observations,
                     observed,
                     starts,

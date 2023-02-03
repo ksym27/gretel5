@@ -19,31 +19,34 @@ def convert_o(lengths_filename, observations_filename, output_dir):
     total = 0
     pos = 0
     data = []
+    step = 2
     for length in lengths:
         sub_lines = lines[pos: pos + length]
         pre_node = None
         new_lines = []
-        for line in sub_lines:
+        count = 0
+        for i, line in enumerate(sub_lines):
             items = line.split()
             node = items[0]
             if pre_node != node:
-                new_lines.append(line)
-            pre_node = node
+                if count % step == 0:
+                    new_lines.append(line)
+                    pre_node = node
+                count = count + 1
+
         data.append(new_lines)
         total += len(new_lines)
         pos += length
 
-    step_size = 3
-    observations_filename = os.path.join(output_dir, "observations_6sec.txt")
-    lengths_filename = os.path.join(output_dir, "lengths.txt")
+    # step_size = 3
+    observations_filename = os.path.join(output_dir, "observations_6sec_s.txt")
+    lengths_filename = os.path.join(output_dir, "lengths_s.txt")
     with open(observations_filename, 'w') as f1, open(lengths_filename, 'w') as f2:
         f1.write("%d\t1\n" % total)
-        length = 0
         for i, lines in enumerate(data):
-            if i % step_size == 0:
-                f.writelines(lines)
-                length = step_size + 1
-        f.write("%d\t%d\n" % (i, length))
+            f1.writelines(lines)
+            f2.write("%d\t%d\n" % (i, len(lines)))
+
 
     return None
 
@@ -66,7 +69,7 @@ def convert(filename1, filename2):
     pre_node = None
     pre_time = None
     for r in rows:
-        id, node, time, type, goal, _ = r
+        id, node, time = r
         if id != pre_id:
             # 後ろを埋める
             if pre_id is not None:
@@ -75,9 +78,12 @@ def convert(filename1, filename2):
             # 前を埋める
             for i in range(start_time, int(time), interval):
                 nodes_time.append([id, node, str(i), '1'])
+                pre_time = i
 
-        nodes_time.append([id, node, time, '0'])
-        pre_id, pre_node, pre_time, pre_goal = id, node, int(time), goal
+        for i in range(pre_time+interval, int(time)+interval, interval):
+            nodes_time.append([id, node, str(i), '0'])
+
+        pre_id, pre_node, pre_time = id, node, int(time)
 
     # データの書き込み
     with open(filename2, 'w') as f:
@@ -102,16 +108,16 @@ def rmse(filename1, filename2):
 
 
 if __name__ == "__main__":
-    path1 = "/home/owner/dev/gretel3/workspace/deep/lengths.txt.b"
-    path2 = "/home/owner/dev/gretel3/workspace/deep/observations_6sec.txt.b"
-    path3 = "/home/owner/dev/gretel3/workspace/deep/"
-    convert_o(path1, path2, path3)
+    # path1 = "/home/owner/dev/gretel3/workspace/deep/lengths.txt.b"
+    # path2 = "/home/owner/dev/gretel3/workspace/deep/observations_6sec.txt.b"
+    # path3 = "/home/owner/dev/gretel3/workspace/deep/"
+    # convert_o(path1, path2, path3)
 
     # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result.csv"
     # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result_alloc.csv"
-    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true.csv"
-    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true_alloc.csv"
-    # convert(path1, path2)
+    path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true_result.csv"
+    path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true_result_alloc.csv"
+    convert(path1, path2)
 
     # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/result.csv"
     # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/result_rmse.csv"

@@ -8,8 +8,6 @@ from typing import Callable
 from config import Config
 from metrics import Evaluator
 from main import load_data, create_optimizer, create_model, evaluate
-import deep
-
 
 def evaluate(
         model,
@@ -22,8 +20,17 @@ def evaluate(
     evaluator = evaluator_creator()
     return evaluator.test_compute(model, graph, trajectories, trajectory_idx)
 
+def save_trajectory(future, dirname):
 
-def main():
+    return None
+
+def process():
+
+
+
+    return None
+
+def start():
     parser = argparse.ArgumentParser()
     parser.add_argument("config_file")
     parser.add_argument("--name")
@@ -66,7 +73,7 @@ def main():
     optimizer = create_optimizer(model.parameters(), config)
 
     chkpt_dir = os.path.join(config.workspace, config.checkpoint_directory, config.name)
-    filename = os.path.join(chkpt_dir, config.chechpoint_file_name)
+    filename = os.path.join(chkpt_dir, config.checkpoint_file_name)
     checkpoint_data = torch.load(filename)
     model.load_state_dict(checkpoint_data["model_state_dict"])
     optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
@@ -103,8 +110,8 @@ def main():
                 f.write('%d,%d,%d\n' % (ids[i], node, time * config.obs_time_intervals))
             # if i % 10 == 0:
             #     print(i)
-            if i > 10:
-                break
+            # if i > 1000:
+            #     break
             print(i)
 
     # マスクを出力
@@ -113,8 +120,17 @@ def main():
         for i, m in enumerate(test_trajectories._mask):
             f.write('%d,%d\n' % (i, m.item()))
 
+    # 保存する(observation, length)
+    deep_dir = os.path.join(config.workspace, config.checkpoint_directory, config.name)
+    os.makedirs(deep_dir, exist_ok=True)
+    save_trajectory(future, deep_dir)
+
     print("end")
 
+def restart():
+
+
+    print('end')
 
 if __name__ == "__main__":
-    main()
+    start()

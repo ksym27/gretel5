@@ -26,7 +26,7 @@ device = cuda:0
 lr = .001
 momentum = 0.5
 batch_size = 5
-train_test_ratio = 0.7/0.3
+train_test_ratio = 0.9/0.1
 
 ; train and test only on the first trajectory (requires batch_size=1)
 overfit1 = False
@@ -68,15 +68,14 @@ compute_baseline = false
 enable_checkpointing = True
 checkpoint_directory = chkpt
 checkpoint_every_num_epoch = 10
-restore_from_checkpoint = false
+restore_from_checkpoint = true
 
 
 [deep]
-num_observed_samples = 100
+num_observed_samples = 200
 create_path_file = true
 obs_time_intervals = 6
-checkpoint_file_name = 0180.pt
+checkpoint_file_name = 0030.pt
 max_iteration_prediction = 600
 prediction_file_name = prediction_result.csv
 agent_speed = 1.11
-deep_temp_name = deep-nll-temp

@@ -89,7 +89,6 @@ class Config(object):
     max_iteration_prediction: int = 100
     prediction_file_name: str = ""
     agent_speed: float = 1.0
-    deep_temp_name: str = "temp"
 
     def load_from_file(self, filename: str):
         """Load configuration fiels from a file

@@ -6,7 +6,6 @@ import networkx as nx
 import torch
 
 from utils import start_idx_from_lengths
-from utils import numpify
 
 
 class Trajectories:

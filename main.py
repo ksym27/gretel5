@@ -5,7 +5,7 @@ import time
 
 from torch import Tensor
 
-import deep
+import deep_proc as deep
 import numpy as np
 import torch
 from termcolor import colored
@@ -31,7 +31,7 @@ def load_tensor(device: torch.device, path: str, *subpaths) -> Optional[torch.Te
 
 
 def load_data(
-        config: Config
+        config: Config,
 ) -> Tuple[Union[Graph, Any], Tuple[Any, Any, Any], Optional[Tensor], Optional[Tensor]]:
     """Read data in config.workspace / config.input_directory
 
@@ -52,9 +52,14 @@ def load_data(
         shelter_filename=os.path.join(input_dir, "shelter.txt")
     )
 
+    # データの読み込み先の設定
+    lengths_filename = os.path.join(input_dir, "lengths_s.txt")
+    observations_filename = os.path.join(input_dir, "observations_6sec_s.txt")
+
+    #
     trajectories = Trajectories.read_from_files_for_deep(
-        lengths_filename=os.path.join(input_dir, "lengths_s.txt"),
-        observations_filename=os.path.join(input_dir, "observations_6sec_s.txt"),
+        lengths_filename=lengths_filename,
+        observations_filename=observations_filename,
         num_nodes=graph.n_node,
         node_id_map=graph.node_id_map,
         graph=graph,
@@ -131,14 +136,6 @@ def load_data(
     trajectories = (train_trajectories, valid_trajectories, test_trajectories)
 
     return graph, trajectories, pairwise_node_features, pairwise_distances
-
-
-def load_wiki_data(config: Config) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
-    """Load wikipedia specific data"""
-    input_dir = os.path.join(config.workspace, config.input_directory)
-    given_as_target = load_tensor(config.device, input_dir, "given_as_target.pt")
-    siblings = load_tensor(config.device, input_dir, "siblings.pt")
-    return given_as_target, siblings
 
 
 def display_baseline(
@@ -464,7 +461,6 @@ def main():
     train_trajectories, valid_trajectories, test_trajectories = trajectories
     use_validation_set = len(valid_trajectories) > 0
     graph = graph.to(config.device)
-
 
     given_as_target, siblings_nodes = None, None
     if config.dataset == "wikispeedia":

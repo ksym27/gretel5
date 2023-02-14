@@ -8,12 +8,11 @@ from tabulate import tabulate
 import networkx as nx
 
 from future import Future
-from utils import generate_masks
+from utils import generate_masks, numpify
 from trajectories import Trajectories
 from graph import Graph
 from model import Model
 import deep_proc as deep
-
 
 class Metric:
     """Simple Metric aggregation class"""
@@ -112,10 +111,13 @@ class Evaluator:
 
                 # 初期位置の格納
                 current_node = torch.argmax(observations[-1])
-                # 予測されたノードを格納する
-                predicted_nodes = [current_node]
-                predicted_times = [observation_times[-1]]
 
+                # 観測値
+                predicted_nodes = []
+                predicted_times = []
+                for i in range(n_prefix):
+                    predicted_nodes.append(torch.argmax(observations[i]))
+                    predicted_times.append(observation_times[i])
             else:
                 # 初期データの準備
                 observations = future.observations[trajectory_idx]
@@ -133,6 +135,8 @@ class Evaluator:
             n_next_steps = 5
             observation_steps[-1] = n_next_steps
 
+            # if trajectory_idx == 3:
+            #     trajectory_idx = trajectory_idx
             # ここからループさせる。
             next_pos = 1
             for i in range(config.max_iteration_prediction):
@@ -156,6 +160,16 @@ class Evaluator:
                     lp_graph if not config.diffusion_self_loops else lp_graph.add_self_loops()
                 )
 
+
+                # if current_node in (
+                #         graph.node_id_map[-25370],
+                #         # graph.node_id_map[25369],
+                #         # #graph.node_id_map[25367],
+                #         #graph.node_id_map[-25375],
+                #         graph.node_id_map[25374]
+                # ):
+                #     current_node = current_node
+
                 predictions, _, rw_weights = model(
                     observations,
                     lp_graph,
@@ -176,8 +190,9 @@ class Evaluator:
                     next_node = next_node[0]
 
                 # 時間情報を更新する
-                travel_steps = 10
+                travel_steps = 50
                 if current_node != next_node:
+                    # 探索する
                     path_nodes = nx.shortest_path(lp_graph.nx_graph, source=current_node.item(),
                                                   target=next_node.item(), weight='weight')
                     n_path_nodes = len(path_nodes)
@@ -208,8 +223,15 @@ class Evaluator:
                 # 観測データを結合する
                 observations = torch.cat((observations, predicted_node))
 
-                # ゴールに到着したかどうか確認する
-                if lp_graph.shelter[next_node] != 0:
+                # # ゴールに到着したかどうか確認する
+                # if lp_graph.shelter[next_node] != 0:
+                #     future.condition[trajectory_idx] = -1
+                #     break
+
+                # 何回も同じノードを通過する場合は終わらせる
+                check_nodes = torch.unique_consecutive(torch.tensor(predicted_nodes, device=config.device))
+                _, counts = torch.unique(check_nodes, return_counts=True)
+                if config.max_node_duplication < torch.max(counts):
                     future.condition[trajectory_idx] = -1
                     break
 
@@ -220,7 +242,6 @@ class Evaluator:
 
             future.predicted_nodes[trajectory_idx] = predicted_nodes
             future.predicted_times[trajectory_idx] = predicted_times
-            future.condition[trajectory_idx] = 1
 
         return None
 

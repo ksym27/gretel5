@@ -16,7 +16,7 @@ from tqdm import tqdm
 def pre_process(config):
     # load data
     graph, trajectories, pairwise_node_features, _ = load_data(config)
-    trajectories = trajectories[2]
+    train_trajectories, valid_trajectories, test_trajectories = trajectories
 
     graph = graph.to(config.device)
 
@@ -59,12 +59,18 @@ def pre_process(config):
 
     # マスクを出力
     chkpt_dir = os.path.join(config.workspace, config.checkpoint_directory, config.name)
-    mask_filename = os.path.join(chkpt_dir, 'mask.csv')
+    mask_filename = os.path.join(chkpt_dir, 'mask_test.csv')
     with open(mask_filename, 'w') as f:
-        for i, m in enumerate(trajectories._mask):
+        for i, m in enumerate(test_trajectories._mask):
             f.write('%d,%d\n' % (i, m.item()))
 
-    return graph, trajectories, model
+    chkpt_dir = os.path.join(config.workspace, config.checkpoint_directory, config.name)
+    mask_filename = os.path.join(chkpt_dir, 'mask_train.csv')
+    with open(mask_filename, 'w') as f:
+        for i, m in enumerate(train_trajectories._mask):
+            f.write('%d,%d\n' % (i, m.item()))
+
+    return graph, test_trajectories, model
 
 
 def evaluate(
@@ -185,7 +191,7 @@ def predict(config, start_time, step_time, future, graph, trajectories, model):
         )
 
     # モデルを使った予測
-    for i in tqdm(range(len(trajectories))):
+    for i in tqdm(range(0, len(trajectories), 3)):
         n_time_steps = int((start_time + step_time) / config.obs_time_intervals)
         evaluate(model, graph, trajectories, i, create_evaluator, future, n_time_steps)
 
@@ -194,8 +200,8 @@ def predict(config, start_time, step_time, future, graph, trajectories, model):
 
 def main_loop():
     start_time = 0
-    step_time = 1800
-    end_time = step_time * 3
+    step_time = 3600
+    end_time = step_time * 6
 
     parser = argparse.ArgumentParser()
     parser.add_argument("config_file")

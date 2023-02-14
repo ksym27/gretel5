@@ -89,6 +89,10 @@ class Config(object):
     max_iteration_prediction: int = 100
     prediction_file_name: str = ""
     agent_speed: float = 1.0
+    max_node_duplication: int = 5
+    blockage_time_intervals: int = 6
+    start_reverse_edges: int = 0
+    start_loop_edges: int = 0
 
     def load_from_file(self, filename: str):
         """Load configuration fiels from a file

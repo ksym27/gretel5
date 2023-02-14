@@ -4,6 +4,7 @@ import os
 
 import networkx as nx
 import torch
+import scipy.spatial as ss
 
 from utils import start_idx_from_lengths
 
@@ -124,10 +125,8 @@ class Trajectories:
         item = self._mapped_index(item)
         start = self._starts[item]
         length = self._lengths[item]
-        times = self._times[
-                start: start + length
-                ]
-        return times.squeeze()
+        times = torch.reshape(self._times[start: start + length], (-1, 1))
+        return times.squeeze(dim=1)
 
     def _mapped_index(self, index):
         """transform an input index to index in the non masked trajectories underlying"""
@@ -349,9 +348,6 @@ class Trajectories:
             [torch.tensor([0], device=lengths.device), torch.cumsum(lengths, dim=0)]
         )
 
-        # create NetworkX graph
-        nx_graph = graph.nx_graph
-
         # read observations, assume fixed number of observations
         obs_weights, obs_indices = None, None
         paths = []
@@ -362,7 +358,7 @@ class Trajectories:
             obs_weights = torch.zeros(num_observations, k)
             obs_indices = torch.zeros(num_observations, k, dtype=torch.long)
             obs_times = torch.zeros(num_observations, k, dtype=torch.long)
-            
+
             for i, line in enumerate(f.readlines()):
                 elements = line.split("\t")
                 # for n in range(k):
@@ -372,12 +368,15 @@ class Trajectories:
 
                 # store observation data with time
                 n = 0
-                node_index = node_id_map[int(elements[2 * n])]
+                node = int(elements[2 * n])
+                node_index = node_id_map[node] if node in node_id_map else 0
                 obs_indices[i, n] = node_index
                 obs_weights[i, n] = float(elements[2 * n + 1])
 
                 time = float(elements[2 * n + 2]) / obs_time_intervals
                 obs_times[i, n] = int(round(time)) - 1
+
+                nx_graph = graph.nx_graphs[0] if output else graph.get_nx_graph(obs_times[i, n])
 
                 # if no path file
                 if (i not in cum_num_steps) and output:
@@ -399,7 +398,8 @@ class Trajectories:
             with open(paths_filename, 'w') as f:
                 f.write("{:d}\t{:d}\n".format(len(paths), max_path_length))
                 for path in paths:
-                    f.write('{}\n'.format('\t'.join(map(str, path))))
+                    path_ = [str(graph.edge_rid_map[i]) for i in path]
+                    f.write('{}\n'.format('\t'.join(path_)))
 
         # read underlying paths
         paths = None
@@ -408,7 +408,7 @@ class Trajectories:
                 num_paths, max_path_length = map(int, f.readline().split("\t"))
                 paths = torch.zeros([num_paths, max_path_length], dtype=torch.long) - 1
                 for i, line in enumerate(f.readlines()):
-                    ids = list(map(int, line.split("\t")))
+                    ids = [graph.edge_id_map[int(j)] for j in line.split("\t")]
                     if len(ids) == 0:
                         print(i)
                     paths[i, : len(ids)] = torch.tensor(ids)

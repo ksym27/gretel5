@@ -11,7 +11,7 @@ import torch
 from termcolor import colored
 from typing import Optional, List, Callable, Tuple, Union, Any
 
-from config import Config, config_generator
+from config import Config
 from graph import Graph
 from metrics import Evaluator
 from model import Model, MLP, MultiDiffusion, EdgeTransformer
@@ -28,6 +28,51 @@ def load_tensor(device: torch.device, path: str, *subpaths) -> Optional[torch.Te
         tensor = torch.load(filename)
         tensor = tensor.to(device)
     return tensor
+
+
+def load_data2(
+        config: Config,
+) -> Tuple[Union[Graph, Any], Tuple[Any, Any, Any], Optional[Tensor], Optional[Tensor]]:
+    """Read data in config.workspace / config.input_directory
+
+    Args:
+        config (Config): configuration
+
+    Returns:
+        (Graph, List[Trajectories], torch.Tensor, torch.Tensor):
+            graph, (train, valid, test)_trajectories, pairwise_node_features, pairwise_distances
+    """
+
+    input_dir = os.path.join(config.workspace, config.input_directory)
+
+    graph = Graph.read_from_files_for_deep(
+        nodes_filename=os.path.join(input_dir, "nodes.txt"),
+        edges_filename=os.path.join(input_dir, "edges.txt"),
+        blockage_filename=os.path.join(input_dir, "blockage.txt"),
+        shelter_filename=os.path.join(input_dir, "shelter.txt"),
+        blockage_time_intervals=config.blockage_time_intervals,
+        start_reverse_edges=config.start_reverse_edges
+    )
+
+    # データの読み込み先の設定
+    lengths_filename = os.path.join(input_dir, "lengths.txt")
+    observations_filename = os.path.join(input_dir, "observation_6sec.txt")
+
+    #
+    trajectories = Trajectories.read_from_files_for_deep(
+        lengths_filename=lengths_filename,
+        observations_filename=observations_filename,
+        num_nodes=graph.n_node,
+        node_id_map=graph.node_id_map,
+        graph=graph,
+        paths_filename=os.path.join(input_dir, "paths.txt"),
+        output=config.create_path_file,
+        obs_time_intervals=config.obs_time_intervals
+    )
+
+    trajectories = trajectories.to(config.device)
+
+    return graph, trajectories
 
 
 def load_data(
@@ -48,13 +93,15 @@ def load_data(
     graph = Graph.read_from_files_for_deep(
         nodes_filename=os.path.join(input_dir, "nodes.txt"),
         edges_filename=os.path.join(input_dir, "edges.txt"),
-        blockage_filename=os.path.join(input_dir, "blockage.csv"),
-        shelter_filename=os.path.join(input_dir, "shelter.txt")
+        blockage_filename=os.path.join(input_dir, "blockage.txt"),
+        shelter_filename=os.path.join(input_dir, "shelter.txt"),
+        blockage_time_intervals=config.blockage_time_intervals,
+        start_reverse_edges=config.start_reverse_edges
     )
 
     # データの読み込み先の設定
     lengths_filename = os.path.join(input_dir, "lengths_s.txt")
-    observations_filename = os.path.join(input_dir, "observations_6sec_s.txt")
+    observations_filename = os.path.join(input_dir, "observation_6sec_s.txt")
 
     #
     trajectories = Trajectories.read_from_files_for_deep(
@@ -63,7 +110,7 @@ def load_data(
         num_nodes=graph.n_node,
         node_id_map=graph.node_id_map,
         graph=graph,
-        paths_filename=os.path.join(input_dir, "paths.txt"),
+        paths_filename=os.path.join(input_dir, "paths_s.txt"),
         output=config.create_path_file,
         obs_time_intervals=config.obs_time_intervals
     )
@@ -463,8 +510,8 @@ def main():
     graph = graph.to(config.device)
 
     given_as_target, siblings_nodes = None, None
-    if config.dataset == "wikispeedia":
-        given_as_target, siblings_nodes = load_wiki_data(config)
+    # if config.dataset == "wikispeedia":
+    #     given_as_target, siblings_nodes = load_wiki_data(config)
 
     if pairwise_node_features is not None:
         pairwise_node_features = pairwise_node_features.to(config.device)

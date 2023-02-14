@@ -14,6 +14,8 @@
 
 [observations_6sec|lengths|paths]_s.txt：滞在点なし、２ステップ飛ばし
 
+### モデルデータ
+場所：workspace/chkpt/deep-nll[1|2]内のptファイル
 
 ### 設定ファイル
 場所：workspace/deep/deep[1|2]/deep_nll.txt

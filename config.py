@@ -22,7 +22,7 @@ class Config(object):
     input_directory: str = ""
     max_trajectory_length: int = 120
     min_trajectory_length: int = 6
-    k_closest_nodes: int = 5
+    #k_closest_nodes: int = 5
     extract_coord_features: bool = True
 
     device: torch.device = torch.device("cpu")
@@ -83,7 +83,6 @@ class Config(object):
     print_every: int = 10
 
     num_observed_samples: int = 10
-    create_path_file: bool = False
     obs_time_intervals: int = 1
     checkpoint_file_name: str = "0001.pt"
     max_iteration_prediction: int = 100

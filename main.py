@@ -66,7 +66,6 @@ def load_data2(
         node_id_map=graph.node_id_map,
         graph=graph,
         paths_filename=os.path.join(input_dir, "paths.txt"),
-        output=config.create_path_file,
         obs_time_intervals=config.obs_time_intervals
     )
 
@@ -111,7 +110,6 @@ def load_data(
         node_id_map=graph.node_id_map,
         graph=graph,
         paths_filename=os.path.join(input_dir, "paths_s.txt"),
-        output=config.create_path_file,
         obs_time_intervals=config.obs_time_intervals
     )
 

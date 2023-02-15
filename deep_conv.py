@@ -4,34 +4,97 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 import numpy as np
 import torch
+import networkx as nx
 
 from config import Config
+from graph import Graph
 from main import load_data2
 
-def convert_sim(input_filename, observations_filename, lengths_filename):
-    # read node features
+
+def convert_sim(config_filename, input_filename, output_dir):
+    config = Config()
+    config.load_from_file(config_filename)
+
+    input_dir = os.path.join(config.workspace, config.input_directory)
+
+    graph = Graph.read_from_files_for_deep(
+        nodes_filename=os.path.join(input_dir, "nodes.txt"),
+        edges_filename=os.path.join(input_dir, "edges.txt"),
+        blockage_filename=os.path.join(input_dir, "blockage.txt"),
+        shelter_filename=os.path.join(input_dir, "shelter.txt"),
+        blockage_time_intervals=config.blockage_time_intervals,
+        start_reverse_edges=config.start_reverse_edges
+    )
+
+    nx_graph = graph.nx_graphs[0]
+
     data = []
     lengths = []
-    total = 0
+    paths = []
+    max_path_length = 0
     with open(input_filename) as f:
+        f.readline()
         for i, line in enumerate(f.readlines()):
             elements = line.replace('\n', '').split(',')
-            records = []
-            for j in range(1, len(elements)):
-                values = elements[j].split(':')
-                time = int(float(values[0]) * 60)
-                node = int(values[1])
-                records.append("{}\t{}\t{}\t{}\n".format(node, int(1), time, i))
-            if len(records) > 1:
-                data.append(records)
-                lengths.append((i, len(records)))
-                total += len(records)
+            head_items = elements[0].split(':')
+            original_id = head_items[0].split('_')[0]
+            start_time = int(float(head_items[1]) * 60)
 
-    with open(observations_filename, 'w') as f1, open(lengths_filename, 'w') as f2:
-        f1.write("%d\t1\n" % total)
-        for i, lines in enumerate(data):
-            f1.writelines(lines)
-            f2.write("%d\t%d\n" % (lengths[i][0], lengths[i][1]))
+            records = []
+            for j in range(0, len(elements)):
+                if j == 0:
+                    node = int(head_items[-1])
+                    records.append((node, int(1), start_time, i, original_id))
+                else:
+                    time = start_time + 6 * j
+                    node = int(elements[j])
+                    records.append((node, int(1), time, i, original_id))
+            if len(records) > 1:
+                data.extend(records)
+                lengths.append((i, len(records)))
+
+                # ルート探索
+                for k in range(1, len(records)):
+                    source = graph.node_id_map[int(records[k - 1][0])]
+                    target = graph.node_id_map[int(records[k][0])]
+                    path_nodes = nx.shortest_path(nx_graph, source=source, target=target, weight='weight')
+                    n_path_nodes = len(path_nodes)
+                    edges = None
+                    if n_path_nodes > 1:
+                        edges = [nx_graph.get_edge_data(path_nodes[l - 1], path_nodes[l])['id'] for l in
+                                 range(1, n_path_nodes)]
+                    else:
+                        edges = [nx_graph.get_edge_data(path_nodes[0], path_nodes[0])['id']]
+                    paths.append(edges)
+                    max_path_length = max(max_path_length, len(edges))
+
+    # ファイルに出力する
+    observations_filename = os.path.join(output_dir, "observation_6sec.txt")
+    lengths_filename = os.path.join(output_dir, "lengths.txt")
+    paths_filename = os.path.join(output_dir, "paths.txt")
+    blockage_filename = os.path.join(output_dir, "blockage_.txt")
+
+    with open(observations_filename, 'w') as f:
+        f.write("%d\t1\n" % len(data))
+        f.writelines([("{}\t{}\t{}\t{}\t{}\n".format(i[0], i[1], i[2], i[3], i[4])) for i in data])
+
+    with open(lengths_filename, 'w') as f:
+        f.writelines(["%d\t%d\n" % (i[0], i[1]) for i in lengths])
+
+    # write paths
+    with open(paths_filename, 'w') as f:
+        f.write("{:d}\t{:d}\n".format(len(paths), max_path_length))
+        for path in paths:
+            path_ = [str(graph.edge_rid_map[i]) for i in path]
+            f.write('{}\n'.format('\t'.join(path_)))
+
+    with open(blockage_filename, 'w') as f:
+        n1, n2 = graph.blockage.size()
+        for i in range(0, n2, 150):
+            for j in range(n1):
+                condition = graph.blockage[j, i]
+                if condition != 0:
+                    f.write('{},{}\n'.format(graph.edge_rid_map[j], i))
 
 
 def convert_blockage(input_filename, blockage_filename):
@@ -54,9 +117,9 @@ def convert_obs(config_filename, output_dir):
     graph, trajectories = load_data2(config)
 
     n_noloop = graph.n_edge - graph.n_node
-
     step = 2
     data = []
+    ids = []
     n_total = 0
     for i in range(0, len(trajectories)):
         observations = trajectories[i]
@@ -70,7 +133,7 @@ def convert_obs(config_filename, output_dir):
         n_observations = len(observations)
         for j in range(n_observations):
             o = torch.argmax(observations[j])
-            if j != n_observations-1:
+            if j != n_observations - 1:
                 if o != pred_o:
                     if candiate_count % step == 0:
                         paths = edges[pred_j:j].flatten()
@@ -87,6 +150,7 @@ def convert_obs(config_filename, output_dir):
 
         if len(sub) > 1:
             data.append(sub)
+            ids.append(i)
             n_total += len(sub)
 
     observations_filename = os.path.join(output_dir, "observation_6sec_s.txt")
@@ -99,11 +163,11 @@ def convert_obs(config_filename, output_dir):
             for j in sub:
                 node = graph.node_rid_map[j[0].item()]
                 time = j[1].item() * config.obs_time_intervals
-                f1.write("%d\t1\t%d\t%d\n" % (node,  time, i))
+                f1.write("%d\t1\t%d\t%d\n" % (node, time, ids[i]))
                 n_paths = len(j[2])
                 size_path[0] += 1 if n_paths > 0 else 0
                 size_path[1] = n_paths if n_paths > size_path[1] else size_path[1]
-            f2.write("%d\t%d\n" % (i, len(sub)))
+            f2.write("%d\t%d\n" % (ids[i], len(sub)))
 
     with open(paths_filename, 'w') as f:
         r, c = size_path
@@ -113,6 +177,7 @@ def convert_obs(config_filename, output_dir):
                 if len(j[2]) > 0:
                     line = "\t".join([str(graph.edge_rid_map[k.item()]) for k in j[2]])
                     f.write("%s\n" % line)
+
     return None
 
 
@@ -173,9 +238,9 @@ def rmse(filename1, filename2):
 
 
 if __name__ == "__main__":
-    path1 = "/home/owner/dev/gretel3/workspace/deep1/deep_nll.txt"
-    path2 = "/home/owner/dev/gretel3/workspace/deep1/"
-    convert_obs(path1, path2)
+    # path1 = "/home/owner/dev/gretel3/workspace/deep2/deep_nll.txt"
+    # path2 = "/home/owner/dev/gretel3/workspace/deep2/"
+    # convert_obs(path1, path2)
     #
     # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result.txt"
     # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result_alloc.txt"
@@ -187,10 +252,10 @@ if __name__ == "__main__":
     # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/result_rmse.csv"
     # rmse(path1, path2)
 
-    # path0 = "/home/owner/Desktop/input/traj_pos65_0.1分間隔_4_sep1.csv"
-    # path1 = "/home/owner/Desktop/observation_6sec.txt"
-    # path2 = "/home/owner/Desktop/lengths.txt"
-    # convert_sim(path0, path1, path2)
+    path0 = "/home/owner/dev/gretel3/workspace/deep2/deep_nll.txt"
+    path1 = "/home/owner/Desktop/input/traj_pos98_0.1分間隔_5_sep_fin.csv"
+    path2 = "/home/owner/Desktop/"
+    convert_sim(path0, path1, path2)
 
     # path0 = "/home/owner/Desktop/input/blockage_new_20220227.csv"
     # path1 = "/home/owner/Desktop/blockage.txt"

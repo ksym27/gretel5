@@ -2,9 +2,7 @@ import copy
 import logging
 import os
 
-import networkx as nx
 import torch
-import scipy.spatial as ss
 
 from utils import start_idx_from_lengths
 
@@ -335,7 +333,7 @@ class Trajectories:
 
     @classmethod
     def read_from_files_for_deep(
-            cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename, output,
+            cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename,
             obs_time_intervals
     ):
 
@@ -343,10 +341,6 @@ class Trajectories:
         with open(lengths_filename) as f:
             lengths = [int(line.split("\t")[1]) for line in f.readlines()]
             lengths = torch.tensor(lengths)
-
-        cum_num_steps = torch.cat(
-            [torch.tensor([0], device=lengths.device), torch.cumsum(lengths, dim=0)]
-        )
 
         # read observations, assume fixed number of observations
         obs_weights, obs_indices = None, None
@@ -375,31 +369,6 @@ class Trajectories:
 
                 time = float(elements[2 * n + 2]) / obs_time_intervals
                 obs_times[i, n] = int(round(time)) - 1
-
-                nx_graph = graph.nx_graphs[0] if output else graph.get_nx_graph(obs_times[i, n])
-
-                # if no path file
-                if (i not in cum_num_steps) and output:
-                    source = int(obs_indices[i - 1, 0])
-                    target = int(obs_indices[i, 0])
-                    path_nodes = nx.shortest_path(nx_graph, source=source, target=target, weight='weight')
-                    n_path_nodes = len(path_nodes)
-                    edges = None
-                    if n_path_nodes > 1:
-                        edges = [nx_graph.get_edge_data(path_nodes[i - 1], path_nodes[i])['id'] for i in
-                                 range(1, n_path_nodes)]
-                    else:
-                        edges = [nx_graph.get_edge_data(path_nodes[0], path_nodes[0])['id']]
-                    paths.append(edges)
-                    max_path_length = max(max_path_length, len(edges))
-
-        # write paths
-        if output:
-            with open(paths_filename, 'w') as f:
-                f.write("{:d}\t{:d}\n".format(len(paths), max_path_length))
-                for path in paths:
-                    path_ = [str(graph.edge_rid_map[i]) for i in path]
-                    f.write('{}\n'.format('\t'.join(path_)))
 
         # read underlying paths
         paths = None

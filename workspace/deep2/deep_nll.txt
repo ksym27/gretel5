@@ -10,8 +10,6 @@ max_trajectory_length = 300
 min_trajectory_length = 4
 extract_coord_features = true
 
-k_closest_nodes = 5
-
 [training]
 
 ; can be SGD, RMSprop or Adam
@@ -39,7 +37,7 @@ patience = 8
 [model]
 number_observations = 3
 self_loop_weight = 0.01
-diffusion_k_hops = 20
+diffusion_k_hops = 60
 diffusion_hidden_dimension = 1
 parametrized_diffusion = false
 use_shortest_path_distance = false
@@ -73,7 +71,6 @@ restore_from_checkpoint = false
 
 [deep]
 num_observed_samples = 200
-create_path_file = false
 obs_time_intervals = 6
 checkpoint_file_name = 0190.pt
 max_iteration_prediction = 600

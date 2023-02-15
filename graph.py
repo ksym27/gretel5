@@ -796,10 +796,10 @@ class Graph:
     def read_from_files_for_deep(cls,
                                  nodes_filename: str,
                                  edges_filename: str,
-                                 blockage_filename: str,
-                                 shelter_filename: str,
-                                 blockage_time_intervals: int,
-                                 start_reverse_edges:int
+                                 blockage_filename: str = None,
+                                 shelter_filename: str = None,
+                                 blockage_time_intervals: int = None,
+                                 start_reverse_edges:int = None
                                  ):
 
         node_features = None
@@ -836,6 +836,8 @@ class Graph:
                 edge_id_map[int(elements[0])] = i
 
         # 道路閉塞の情報を生成する
+        blockage = None
+        nx_graphs = []
         if blockage_filename is not None and os.path.exists(blockage_filename):
             with open(blockage_filename) as f:
                 _, num_attrs, num_steps = map(int, f.readline().split('\t'))
@@ -856,7 +858,6 @@ class Graph:
                         blockage[edge_id_map[edge_id2]] = features
                         blockage[edge_id_map[edge_id2+start_reverse_edges]] = features
 
-                nx_graphs = []
                 for i in range(0, num_steps, blockage_time_intervals):
                     attr = list(enumerate(numpify(edge_features[:, 0])))
                     blockage_t = blockage[:, i]
@@ -878,15 +879,17 @@ class Graph:
         #             f.write("{}\t{}\n".format(i+1, ei))
 
         # 避難所のデータを読み込む
-        shelter = torch.zeros(num_nodes)
-        with open(shelter_filename) as f:
-            for i, line in enumerate(f.readlines()):
-                elements = line.split("\t")
-                if 0 == int(elements[3]) and int(elements[0]) in node_id_map:
-                    shelter[node_id_map[int(elements[0])]] = 1
+        shelter = None
+        if shelter_filename is not None and os.path.exists(shelter_filename):
+            shelter = torch.zeros(num_nodes)
+            with open(shelter_filename) as f:
+                for i, line in enumerate(f.readlines()):
+                    elements = line.split("\t")
+                    if 0 == int(elements[3]) and int(elements[0]) in node_id_map:
+                        shelter[node_id_map[int(elements[0])]] = 1
 
-        # ノードの特徴量として避難所のフラグを追加する
-        node_features = torch.cat([node_features, shelter.reshape(-1, 1)], axis=1)
+            # ノードの特徴量として避難所のフラグを追加する
+            node_features = torch.cat([node_features, shelter.reshape(-1, 1)], axis=1)
 
         return Graph(
             nodes=node_features,

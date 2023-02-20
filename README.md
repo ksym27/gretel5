@@ -27,6 +27,10 @@ main.py workspace/deep2/deep_nll.txt
 
 ### 予測方法
 deep_pred.py workspace/deep2/deep_nll.txt<br>
+main_loop関数<br>
+- start_time.txt：sim開始秒
+- end_time.txt:　sim終了秒
+- step_time.txt：simステップ秒
 
 output dir:workspace/chkpt/deep-nll2
 - pred_observations.txt：内部用データ

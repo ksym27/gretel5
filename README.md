@@ -15,15 +15,27 @@
 [observations_6sec|lengths|paths]_s.txt：滞在点なし、２ステップ飛ばし
 
 ### モデルデータ
-場所：workspace/chkpt/deep-nll[1|2]内のptファイル
+場所：workspace/chkpt/deep-nll2内のptファイル
 ダウンロードしてください<br>
 https://drive.google.com/drive/folders/1bZjxtmBnyybLxXoBZLBNuu4zTWk-gGyv?usp=sharing
 
 ### 設定ファイル
-場所：workspace/deep/deep[1|2]/deep_nll.txt
+場所：workspace/deep/deep2/deep_nll.txt
 
 ### 学習方法
-main.py workspace/deep[1|2]/deep_nll.txt
+main.py workspace/deep2/deep_nll.txt
 
 ### 予測方法
-evaluation.py workspace/deep[1|2]/deep_nll.txt
+deep_pred.py workspace/deep2/deep_nll.txt<br>
+
+output:<br>
+workspace/chkpt/deep-nll2<br>
+- pred_observations.txt：内部用データ
+- pred_observation_times.txt：内部用データ
+- pred_observation_steps.txt：内部用データ
+- pred_condition.txt：内部用データ
+- pred_nodes.txt:IDごとの予測されたノードIDのリスト
+- pred_times.txtIDごとの予測されたノードIDに対応する発災後の時間（秒）
+- prediction_result.txt：(id,nodeid,time,status)形式のデータ、可視化用
+
+

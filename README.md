@@ -16,6 +16,8 @@
 
 ### モデルデータ
 場所：workspace/chkpt/deep-nll[1|2]内のptファイル
+ダウンロードしてください<br>
+https://drive.google.com/drive/folders/1bZjxtmBnyybLxXoBZLBNuu4zTWk-gGyv?usp=sharing
 
 ### 設定ファイル
 場所：workspace/deep/deep[1|2]/deep_nll.txt

@@ -196,7 +196,6 @@ class Evaluator:
                     if travel_distance >= 10000:
                         future.condition[trajectory_idx] = -1
                         break
-
                     travel_time = travel_distance / config.agent_speed
                     travel_steps = round(travel_time / config.obs_time_intervals + 0.5)
 

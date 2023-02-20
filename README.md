@@ -28,8 +28,7 @@ main.py workspace/deep2/deep_nll.txt
 ### 予測方法
 deep_pred.py workspace/deep2/deep_nll.txt<br>
 
-output:<br>
-workspace/chkpt/deep-nll2<br>
+output dir:workspace/chkpt/deep-nll2
 - pred_observations.txt：内部用データ
 - pred_observation_times.txt：内部用データ
 - pred_observation_steps.txt：内部用データ

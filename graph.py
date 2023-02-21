@@ -36,7 +36,6 @@ class Graph:
                  node_rid_map=None,
                  edge_id_map=None,
                  edge_rid_map=None,
-                 shelter=None,
                  nx_graphs=None
                  ):
         self.senders = senders
@@ -64,7 +63,6 @@ class Graph:
         self.node_rid_map = node_rid_map
         self.edge_id_map = edge_id_map
         self.edge_rid_map = edge_rid_map
-        self.shelter = shelter
         self.nx_graphs = nx_graphs
 
     """ =========== PROPERTIES =========== """
@@ -797,16 +795,13 @@ class Graph:
                                  nodes_filename: str,
                                  edges_filename: str,
                                  blockage_filename: str = None,
-                                 shelter_filename: str = None,
-                                 blockage_time_intervals: int = None,
-                                 start_reverse_edges:int = None
+                                 blockage_time_intervals: int = None
                                  ):
 
         node_features = None
         edge_features = None
         node_id_map = {}
         edge_id_map = {}
-        blockage = None
 
         # read node features
         with open(nodes_filename) as f:
@@ -845,26 +840,18 @@ class Graph:
 
                 for i, line in enumerate(f.readlines()):
                     elements = list(map(int, line.split(',')))
-                    edge_id1 = elements[1]
-                    edge_id2 = elements[2]
-                    features = torch.tensor(elements[num_attrs:-1])
-
-                    # エッジ１
-                    if edge_id1 in edge_id_map:
-                        blockage[edge_id_map[edge_id1]] = features
-                        blockage[edge_id_map[edge_id1+start_reverse_edges]] = features
-                    # エッジ２
-                    if edge_id2 in edge_id_map:
-                        blockage[edge_id_map[edge_id2]] = features
-                        blockage[edge_id_map[edge_id2+start_reverse_edges]] = features
+                    edge_id = elements[0]
+                    features = torch.tensor(elements[num_attrs:])
+                    if edge_id in edge_id_map:
+                        blockage[edge_id_map[edge_id]] = features
 
                 for i in range(0, num_steps, blockage_time_intervals):
                     attr = list(enumerate(numpify(edge_features[:, 0])))
                     blockage_t = blockage[:, i]
                     attr_dict = []
                     for j, v in attr:
-                        state = 10000 if i != 0 and blockage_t[j] > 0 else v
-                        attr_dict.append({'id': j, 'weight': state})
+                        state = 10000 if blockage_t[j] > 0 else v
+                        attr_dict.append({'id': j, 'weight': state, 'distance': v})
                     nx_graph = nx.DiGraph()
                     nx_graph.add_edges_from(zip(numpify(senders), numpify(receivers), attr_dict))
                     nx_graphs.append(nx_graph)
@@ -872,24 +859,6 @@ class Graph:
         # ノードのIDマップの生成
         node_rid_map = {v: k for k, v in node_id_map.items()}
         edge_rid_map = {v: k for k, v in edge_id_map.items()}
-
-        # with open('/home/owner/dev/gretel3/workspace/deep/b.csv', 'w') as f:
-        #     for i, e in enumerate(blockage[:num_base_edges]):
-        #         for ei in torch.where(e > 0)[0]:
-        #             f.write("{}\t{}\n".format(i+1, ei))
-
-        # 避難所のデータを読み込む
-        shelter = None
-        if shelter_filename is not None and os.path.exists(shelter_filename):
-            shelter = torch.zeros(num_nodes)
-            with open(shelter_filename) as f:
-                for i, line in enumerate(f.readlines()):
-                    elements = line.split("\t")
-                    if 0 == int(elements[3]) and int(elements[0]) in node_id_map:
-                        shelter[node_id_map[int(elements[0])]] = 1
-
-            # ノードの特徴量として避難所のフラグを追加する
-            node_features = torch.cat([node_features, shelter.reshape(-1, 1)], axis=1)
 
         return Graph(
             nodes=node_features,
@@ -903,7 +872,6 @@ class Graph:
             node_rid_map=node_rid_map,
             edge_id_map=edge_id_map,
             edge_rid_map=edge_rid_map,
-            shelter=shelter,
             nx_graphs=nx_graphs
         )
 

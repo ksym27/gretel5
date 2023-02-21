@@ -9,174 +9,196 @@ import networkx as nx
 from config import Config
 from graph import Graph
 from main import load_data2
+from utils import numpify
 
 
-def convert_sim(config_filename, input_filename, output_dir):
+def convert_sim(config_filename, input_filename, block_filename, output_dir):
     config = Config()
     config.load_from_file(config_filename)
 
+    # エッジとノードを読み込み
     input_dir = os.path.join(config.workspace, config.input_directory)
-
     graph = Graph.read_from_files_for_deep(
         nodes_filename=os.path.join(input_dir, "nodes.txt"),
-        edges_filename=os.path.join(input_dir, "edges.txt"),
-        blockage_filename=os.path.join(input_dir, "blockage.txt"),
-        shelter_filename=os.path.join(input_dir, "shelter.txt"),
-        blockage_time_intervals=config.blockage_time_intervals,
-        start_reverse_edges=config.start_reverse_edges
+        edges_filename=os.path.join(input_dir, "edges.txt")
     )
 
-    nx_graph = graph.nx_graphs[0]
+    # nxNetwork生成
+    attr_dict = []
+    for i, w in enumerate(graph.edges[:, 0]):
+        attr_dict.append({'id': i, 'weight': w})
+    nx_graph = nx.DiGraph()
+    nx_graph.add_edges_from(zip(numpify(graph.senders), numpify(graph.receivers), attr_dict))
 
+    # データの変換
     data = []
-    lengths = []
     paths = []
+    total_data = 0
+    total_path = 0
     max_path_length = 0
     with open(input_filename) as f:
         f.readline()
         for i, line in enumerate(f.readlines()):
             elements = line.replace('\n', '').split(',')
             head_items = elements[0].split(':')
-            original_id = head_items[0].split('_')[0]
             start_time = int(float(head_items[1]) * 60)
 
             records = []
             for j in range(0, len(elements)):
                 if j == 0:
                     node = int(head_items[-1])
-                    records.append((node, int(1), start_time, i, original_id))
+                    record = (node, int(1), start_time)
                 else:
                     time = start_time + 6 * j
                     node = int(elements[j])
-                    records.append((node, int(1), time, i, original_id))
-            if len(records) > 1:
-                data.extend(records)
-                lengths.append((i, len(records)))
+                    record = (node, int(1), time)
+                # ノードが存在する場合のみ格納する
+                if record[0] in graph.node_id_map:
+                    records.append(record)
 
-                # ルート探索
+            if len(records) > 1:
+                data.append(records)
+                sub_paths = []
                 for k in range(1, len(records)):
                     source = graph.node_id_map[int(records[k - 1][0])]
                     target = graph.node_id_map[int(records[k][0])]
                     path_nodes = nx.shortest_path(nx_graph, source=source, target=target, weight='weight')
                     n_path_nodes = len(path_nodes)
-                    edges = None
                     if n_path_nodes > 1:
                         edges = [nx_graph.get_edge_data(path_nodes[l - 1], path_nodes[l])['id'] for l in
                                  range(1, n_path_nodes)]
                     else:
                         edges = [nx_graph.get_edge_data(path_nodes[0], path_nodes[0])['id']]
-                    paths.append(edges)
+                    sub_paths.append(edges)
                     max_path_length = max(max_path_length, len(edges))
+                paths.append(sub_paths)
+
+                total_data += len(records)
+                total_path += len(sub_paths)
+
+    # Pathを平坦化する
+    nodup_edges = set([l3 for l1 in paths for l2 in l1 for l3 in l2])
+
+    # 閉塞データをLoadする
+    blockage = [None] * (graph.n_edge - graph.n_node)
+    with open(block_filename) as f:
+        f.readline()
+        for line in f.readlines():
+            elements = line.replace('\n', '').split(',')
+            ids = [int(elements[1]), int(elements[2])]
+            features = list(map(float, elements[3:]))
+            for id in ids:
+                path_flag = False
+                sim_ids = []
+                for pair_id in [id, id + config.start_reverse_edges]:
+                    if pair_id in graph.edge_id_map:
+                        sim_id = graph.edge_id_map[pair_id]
+                        sim_ids.append(sim_id)
+                        if sim_id in nodup_edges:
+                            path_flag = True
+
+                sim_features = [0.] * len(features) if path_flag else features
+                for sim_id in sim_ids:
+                    blockage[sim_id] = sim_features
 
     # ファイルに出力する
     observations_filename = os.path.join(output_dir, "observation_6sec.txt")
     lengths_filename = os.path.join(output_dir, "lengths.txt")
     paths_filename = os.path.join(output_dir, "paths.txt")
-    blockage_filename = os.path.join(output_dir, "blockage_.txt")
+    blockage_filename = os.path.join(output_dir, "blockage.txt")
+    blockage_filename_ = os.path.join(output_dir, "blockage_.txt")
 
     with open(observations_filename, 'w') as f:
-        f.write("%d\t1\n" % len(data))
-        f.writelines([("{}\t{}\t{}\t{}\t{}\n".format(i[0], i[1], i[2], i[3], i[4])) for i in data])
+        f.write("%d\t1\n" % total_data)
+        for i, e in enumerate(data):
+            f.writelines([("{}\t{}\t{}\t{}\n".format(i, j[0], j[1], j[2])) for j in e])
 
     with open(lengths_filename, 'w') as f:
-        f.writelines(["%d\t%d\n" % (i[0], i[1]) for i in lengths])
+        for i, e in enumerate(data):
+            f.writelines(["%d\t%d\n" % (i, len(e))])
 
-    # write paths
     with open(paths_filename, 'w') as f:
-        f.write("{:d}\t{:d}\n".format(len(paths), max_path_length))
-        for path in paths:
-            path_ = [str(graph.edge_rid_map[i]) for i in path]
-            f.write('{}\n'.format('\t'.join(path_)))
+        f.write("{:d}\t{:d}\n".format(total_path, max_path_length))
+        for i, path_ in enumerate(paths):
+            for edges in path_:
+                f.write('{}\t{}\n'.format(i, '\t'.join([str(graph.edge_rid_map[j]) for j in edges])))
 
     with open(blockage_filename, 'w') as f:
-        n1, n2 = graph.blockage.size()
-        for i in range(0, n2, 150):
-            for j in range(n1):
-                condition = graph.blockage[j, i]
-                if condition != 0:
-                    f.write('{},{}\n'.format(graph.edge_rid_map[j], i))
+        f.write("{:d}\t{:d}\n".format(len(blockage), len(blockage[0])))
+        for i, e in enumerate(blockage):
+            f.write('{},{}\n'.format(graph.edge_rid_map[i], ','.join([str(j) for j in e])))
+
+    with open(blockage_filename_, 'w') as f:
+        for i in range(len(blockage)):
+            f.write('{},{}\n'.format(graph.edge_rid_map[i], blockage[i][0]))
 
 
-def convert_blockage(input_filename, blockage_filename):
-    # read node features
-    lines = []
-    with open(input_filename) as f:
-        lines = f.readlines()
-
-    with open(blockage_filename, 'w') as f:
-        n_columns = len(lines[0].split(','))
-        n_head = 3
-        f.write("{}\t{}\t{}\n".format(len(lines) - 1, n_head, n_columns - n_head - 1))
-        f.writelines(lines[1:])
-
-
-def convert_obs(config_filename, output_dir):
+def convert_obs(config_filename, input_dir, output_dir):
     config = Config()
     config.load_from_file(config_filename)
 
-    graph, trajectories = load_data2(config)
+    graph, trajectories = load_data2(config, input_dir)
 
-    n_noloop = graph.n_edge - graph.n_node
+    n_edges = graph.n_edge - graph.n_node
     step = 2
     data = []
-    ids = []
     n_total = 0
     for i in range(0, len(trajectories)):
         observations = trajectories[i]
         edges = trajectories.traversed_edges_by_trajectory(i)
         times = trajectories.times(i)
 
-        pred_j = 0
-        pred_o = None
-        candiate_count = 0
+        prev_j = 0
+        prev_o = None
+        candidate_count = 0
         sub = []
         n_observations = len(observations)
         for j in range(n_observations):
             o = torch.argmax(observations[j])
             if j != n_observations - 1:
-                if o != pred_o:
-                    if candiate_count % step == 0:
-                        paths = edges[pred_j:j].flatten()
-                        paths = paths[(paths != -1) & (paths < n_noloop)]
+                if o != prev_o:
+                    if candidate_count % step == 0:
+                        paths = edges[prev_j:j].flatten()
+                        paths = paths[(paths != -1) & (paths < n_edges)]
                         sub.append((o, times[j], paths))
-                        pred_j = j
-                    candiate_count += 1
+                        prev_j = j
+                        prev_o = o
+                candidate_count += 1
             else:
+                # 最終ノードはかならず追加する
                 if len(sub) == 0 or sub[-1][0] != o:
-                    paths = edges[pred_j:j].flatten()
-                    paths = paths[(paths != -1) & (paths < n_noloop)]
+                    paths = edges[prev_j:j].flatten()
+                    paths = paths[(paths != -1) & (paths < n_edges)]
                     sub.append((o, times[j], paths))
-            pred_o = o
 
         if len(sub) > 1:
             data.append(sub)
-            ids.append(i)
             n_total += len(sub)
 
     observations_filename = os.path.join(output_dir, "observation_6sec_s.txt")
     lengths_filename = os.path.join(output_dir, "lengths_s.txt")
     paths_filename = os.path.join(output_dir, "paths_s.txt")
-    size_path = [0, 0]
+    total_paths = 0
+    n_max_paths = 0
     with open(observations_filename, 'w') as f1, open(lengths_filename, 'w') as f2:
         f1.write("%d\t1\n" % n_total)
         for i, sub in enumerate(data):
             for j in sub:
                 node = graph.node_rid_map[j[0].item()]
                 time = j[1].item() * config.obs_time_intervals
-                f1.write("%d\t1\t%d\t%d\n" % (node, time, ids[i]))
+                f1.write("%d\t%d\t1\t%d\n" % (i, node, time))
                 n_paths = len(j[2])
-                size_path[0] += 1 if n_paths > 0 else 0
-                size_path[1] = n_paths if n_paths > size_path[1] else size_path[1]
-            f2.write("%d\t%d\n" % (ids[i], len(sub)))
+                total_paths += 1 if n_paths > 0 else 0
+                n_max_paths = n_paths if n_paths > n_max_paths else n_max_paths
+            f2.write("%d\t%d\n" % (i, len(sub)))
 
     with open(paths_filename, 'w') as f:
-        r, c = size_path
-        f.write("{}\t{}\n".format(r, c))
+        f.write("{}\t{}\n".format(total_paths, n_max_paths))
         for i, sub in enumerate(data):
             for j in sub:
                 if len(j[2]) > 0:
                     line = "\t".join([str(graph.edge_rid_map[k.item()]) for k in j[2]])
-                    f.write("%s\n" % line)
+                    f.write("%d\t%s\n" % (i, line))
 
     return None
 
@@ -238,25 +260,22 @@ def rmse(filename1, filename2):
 
 
 if __name__ == "__main__":
-    # path1 = "/home/owner/dev/gretel3/workspace/deep2/deep_nll.txt"
-    # path2 = "/home/owner/dev/gretel3/workspace/deep2/"
-    # convert_obs(path1, path2)
-    #
-    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result.txt"
-    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/prediction_result_alloc.txt"
-    # # # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true_result.txt"
-    # # # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/true_result_alloc.txt"
+    # #
+    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/prediction_result.txt"
+    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/prediction_result_alloc.txt"
+    # # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/true_result.txt"
+    # # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/true_result_alloc.txt"
     # convert(path1, path2)
 
-    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/result.csv"
-    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll/result_rmse.csv"
+    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/result.csv"
+    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/result_rmse.csv"
     # rmse(path1, path2)
 
     path0 = "/home/owner/dev/gretel3/workspace/deep2/deep_nll.txt"
     path1 = "/home/owner/Desktop/input/traj_pos98_0.1分間隔_5_sep_fin.csv"
-    path2 = "/home/owner/Desktop/"
-    convert_sim(path0, path1, path2)
+    path2 = "/home/owner/Desktop/input/blockage_new_20220227.csv"
+    path3 = "/home/owner/Desktop/input/r/"
+    # convert_sim(path0, path1, path2, path3)
 
-    # path0 = "/home/owner/Desktop/input/blockage_new_20220227.csv"
-    # path1 = "/home/owner/Desktop/blockage.txt"
-    # convert_blockage(path0, path1)
+    path4 = "/home/owner/Desktop/input/r/"
+    convert_obs(path0, path3, path4)

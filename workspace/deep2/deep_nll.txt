@@ -30,7 +30,7 @@ train_test_ratio = 0.8/0.2
 overfit1 = False
 
 shuffle_samples = true
-number_epoch = 200
+number_epoch = 300
 seed = 20
 patience = 8
 
@@ -73,7 +73,7 @@ restore_from_checkpoint = false
 num_observed_samples = 200
 obs_time_intervals = 6
 checkpoint_file_name = 0190.pt
-max_iteration_prediction = 600
+max_iteration_prediction = 500
 prediction_file_name = prediction_result.csv
 agent_speed = 1.11
 max_node_duplication = 3

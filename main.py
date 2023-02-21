@@ -32,31 +32,28 @@ def load_tensor(device: torch.device, path: str, *subpaths) -> Optional[torch.Te
 
 def load_data2(
         config: Config,
+        input_dir2: str
 ) -> Tuple[Union[Graph, Any], Tuple[Any, Any, Any], Optional[Tensor], Optional[Tensor]]:
     """Read data in config.workspace / config.input_directory
 
     Args:
         config (Config): configuration
-
+        input_dir (str): input directory name
     Returns:
         (Graph, List[Trajectories], torch.Tensor, torch.Tensor):
             graph, (train, valid, test)_trajectories, pairwise_node_features, pairwise_distances
     """
 
     input_dir = os.path.join(config.workspace, config.input_directory)
-
     graph = Graph.read_from_files_for_deep(
         nodes_filename=os.path.join(input_dir, "nodes.txt"),
-        edges_filename=os.path.join(input_dir, "edges.txt"),
-        blockage_filename=os.path.join(input_dir, "blockage.txt"),
-        shelter_filename=os.path.join(input_dir, "shelter.txt"),
-        blockage_time_intervals=config.blockage_time_intervals,
-        start_reverse_edges=config.start_reverse_edges
+        edges_filename=os.path.join(input_dir, "edges.txt")
     )
 
     # データの読み込み先の設定
-    lengths_filename = os.path.join(input_dir, "lengths.txt")
-    observations_filename = os.path.join(input_dir, "observation_6sec.txt")
+    lengths_filename = os.path.join(input_dir2, "lengths.txt")
+    observations_filename = os.path.join(input_dir2, "observation_6sec.txt")
+    paths_filename = os.path.join(input_dir2, "paths.txt")
 
     #
     trajectories = Trajectories.read_from_files_for_deep(
@@ -65,8 +62,8 @@ def load_data2(
         num_nodes=graph.n_node,
         node_id_map=graph.node_id_map,
         graph=graph,
-        paths_filename=os.path.join(input_dir, "paths.txt"),
-        obs_time_intervals=config.obs_time_intervals
+        obs_time_intervals=config.obs_time_intervals,
+        paths_filename = paths_filename
     )
 
     trajectories = trajectories.to(config.device)
@@ -93,14 +90,13 @@ def load_data(
         nodes_filename=os.path.join(input_dir, "nodes.txt"),
         edges_filename=os.path.join(input_dir, "edges.txt"),
         blockage_filename=os.path.join(input_dir, "blockage.txt"),
-        shelter_filename=os.path.join(input_dir, "shelter.txt"),
-        blockage_time_intervals=config.blockage_time_intervals,
-        start_reverse_edges=config.start_reverse_edges
+        blockage_time_intervals=config.blockage_time_intervals
     )
 
     # データの読み込み先の設定
     lengths_filename = os.path.join(input_dir, "lengths_s.txt")
     observations_filename = os.path.join(input_dir, "observation_6sec_s.txt")
+    paths_filename = os.path.join(input_dir, "paths_s.txt")
 
     #
     trajectories = Trajectories.read_from_files_for_deep(
@@ -109,8 +105,8 @@ def load_data(
         num_nodes=graph.n_node,
         node_id_map=graph.node_id_map,
         graph=graph,
-        paths_filename=os.path.join(input_dir, "paths_s.txt"),
-        obs_time_intervals=config.obs_time_intervals
+        obs_time_intervals=config.obs_time_intervals,
+        paths_filename=paths_filename
     )
 
     pairwise_node_features = load_tensor(config.device, input_dir, "pairwise_node_features.pt")

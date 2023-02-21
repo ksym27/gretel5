@@ -333,8 +333,9 @@ class Trajectories:
 
     @classmethod
     def read_from_files_for_deep(
-            cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph, paths_filename,
-            obs_time_intervals
+            cls, lengths_filename, observations_filename, num_nodes, node_id_map, graph,
+            obs_time_intervals,
+            paths_filename=None,
     ):
 
         # read trajectories lengths
@@ -355,20 +356,12 @@ class Trajectories:
 
             for i, line in enumerate(f.readlines()):
                 elements = line.split("\t")
-                # for n in range(k):
-                #     node_index = node_id_map[int(elements[2 * n])]
-                #     obs_indices[i, n] = node_index
-                #     obs_weights[i, n] = float(elements[2 * n + 1])
 
-                # store observation data with time
                 n = 0
-                node = int(elements[2 * n])
-                node_index = node_id_map[node] if node in node_id_map else 0
-                obs_indices[i, n] = node_index
-                obs_weights[i, n] = float(elements[2 * n + 1])
-
-                time = float(elements[2 * n + 2]) / obs_time_intervals
-                obs_times[i, n] = int(round(time)) - 1
+                obs_indices[i, n] = node_id_map[int(elements[2 * n + 1])]
+                obs_weights[i, n] = float(elements[2 * n + 2])
+                obs_time = float(elements[2 * n + 3]) / obs_time_intervals
+                obs_times[i, n] = int(round(obs_time)) - 1
 
         # read underlying paths
         paths = None
@@ -377,9 +370,7 @@ class Trajectories:
                 num_paths, max_path_length = map(int, f.readline().split("\t"))
                 paths = torch.zeros([num_paths, max_path_length], dtype=torch.long) - 1
                 for i, line in enumerate(f.readlines()):
-                    ids = [graph.edge_id_map[int(j)] for j in line.split("\t")]
-                    if len(ids) == 0:
-                        print(i)
+                    ids = [graph.edge_id_map[int(j)] for j in line.split("\t")[1:]]
                     paths[i, : len(ids)] = torch.tensor(ids)
 
         return Trajectories(

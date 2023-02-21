@@ -135,8 +135,6 @@ class Evaluator:
             n_next_steps = 5
             observation_steps[-1] = n_next_steps
 
-            # if trajectory_idx == 3:
-            #     trajectory_idx = trajectory_idx
             # ここからループさせる。
             next_pos = 1
             for i in range(config.max_iteration_prediction):
@@ -180,8 +178,10 @@ class Evaluator:
 
                 # 時間情報を更新する
                 travel_steps = 50
-                #nx_graph = graph.get_nx_graph(predicted_times[-1])
-                nx_graph = graph.get_nx_graph(0)
+                nx_graph = graph.get_nx_graph(predicted_times[-1])
+
+                if current_node == graph.edge_rid_map[33554]:
+                    a = 1
 
                 if current_node != next_node:
                     # 探索する

@@ -126,7 +126,7 @@ class Evaluator:
                 predicted_times = future.predicted_times[trajectory_idx]
 
             # ステップ数を登録する
-            n_next_steps = 5
+            n_next_steps = 3
             observation_steps[-1] = n_next_steps
 
             # ここからループさせる。
@@ -190,11 +190,12 @@ class Evaluator:
                     if travel_distance >= 10000:
                         future.condition[trajectory_idx] = -1
                         break
+                    # 距離から時間を計算する
                     travel_time = travel_distance / config.agent_speed
                     travel_steps = round(travel_time / config.obs_time_intervals + 0.5)
 
+                # 時間を登録する
                 node_time = observation_times[-1] + travel_steps
-
                 observation_times = torch.cat([observation_times, node_time.reshape(1)])
 
                 # 予測結果を保存する
@@ -214,7 +215,7 @@ class Evaluator:
                 observations = torch.cat((observations, predicted_node))
 
                 # # ゴールに到着したかどうか確認する
-                # if lp_graph.shelter[next_node] != 0:
+                # if graph.node[next_node][0] != 0:
                 #     future.condition[trajectory_idx] = -1
                 #     break
 
@@ -225,11 +226,11 @@ class Evaluator:
                     future.condition[trajectory_idx] = -1
                     break
 
-            # データの保存処理を行う
+            # データの保存処理を行う（処理用）
             future.observations[trajectory_idx] = observations[-n_prefix:, :]
             future.observation_times[trajectory_idx] = observation_times[-n_prefix:]
             future.observation_steps[trajectory_idx] = observation_steps[-n_prefix:]
-
+            # データの保存処理を行う（出力用）
             future.predicted_nodes[trajectory_idx] = predicted_nodes
             future.predicted_times[trajectory_idx] = predicted_times
 

@@ -79,4 +79,3 @@ agent_speed = 1.11
 max_node_duplication = 3
 blockage_time_intervals = 150
 start_reverse_edges = 50000
-start_loop_edges = 100000

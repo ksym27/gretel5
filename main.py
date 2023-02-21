@@ -5,7 +5,6 @@ import time
 
 from torch import Tensor
 
-import deep_proc as deep
 import numpy as np
 import torch
 from termcolor import colored
@@ -16,7 +15,7 @@ from graph import Graph
 from metrics import Evaluator
 from model import Model, MLP, MultiDiffusion, EdgeTransformer
 from trajectories import Trajectories
-from utils import generate_masks
+from utils import generate_masks, sampling_mask
 
 """ ======= DATA LOADING ======= """
 
@@ -408,7 +407,7 @@ def train_epoch(
             )
 
             # # 間引いたマスクを生成する
-            observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
+            observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
             # 時間情報を取得
             node_times = train_trajectories.times(trajectory_idx)
 

@@ -7,7 +7,7 @@ workspace = workspace
 dataset = deep2
 input_directory = deep2
 max_trajectory_length = 300
-min_trajectory_length = 4
+min_trajectory_length = 5
 extract_coord_features = true
 
 [training]
@@ -35,7 +35,7 @@ seed = 20
 patience = 8
 
 [model]
-number_observations = 3
+number_observations = 4
 self_loop_weight = 0.01
 diffusion_k_hops = 60
 diffusion_hidden_dimension = 1

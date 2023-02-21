@@ -8,11 +8,11 @@ from tabulate import tabulate
 import networkx as nx
 
 from future import Future
-from utils import generate_masks, numpify
+from utils import generate_masks, sampling_mask
 from trajectories import Trajectories
 from graph import Graph
 from model import Model
-import deep_proc as deep
+
 
 class Metric:
     """Simple Metric aggregation class"""
@@ -70,12 +70,6 @@ class Evaluator:
         self.metrics = OrderedDict()
         for m in metrics:
             self.metrics[m] = Metric()
-
-        if self.config.dataset == "wikispeedia":
-            self.metrics_by_key = OrderedDict()
-            metrics_by_key = ["precision_top1", "precision_top5", "target2_acc", "target_rank"]
-            for m in metrics_by_key:
-                self.metrics_by_key[m] = defaultdict(lambda: Metric())
 
     def predict(
             self,
@@ -241,114 +235,6 @@ class Evaluator:
 
         return None
 
-    def predict_next(
-            self,
-            model: Model,
-            graph: Graph,
-            trajectories: Trajectories,
-            trajectory_idx: int,
-            future: Future
-    ):
-        """Update the metrics for all trajectories in `trajectories`"""
-        self.init_metrics()
-        config = self.config
-
-        # 既に避難所にいる場合は終了する
-        if future.condition[trajectory_idx] < 0:
-            return None
-
-        # 予測処理の開始
-        with torch.no_grad():
-            n_prefix = config.number_observations
-
-            observations_ = trajectories[trajectory_idx]
-            observation_steps_ = trajectories.leg_lengths(trajectory_idx)
-            observation_times_ = trajectories.times(trajectory_idx)
-
-            # 初期データの準備
-            observations = observations_[:n_prefix, :]
-            observation_steps = observation_steps_[:n_prefix]
-            observation_times = observation_times_[:n_prefix]
-
-            # 初期位置の格納
-            current_node = torch.argmax(observations[-1])
-
-            # 観測値
-            predicted_nodes = []
-            predicted_times = []
-            for i in range(n_prefix):
-                predicted_nodes.append(torch.argmax(observations[i]))
-                predicted_times.append(observation_times[i])
-
-            # ステップ数を登録する
-            n_next_steps = 5
-            observation_steps[-1] = n_next_steps
-
-            # マスクの作成
-            i = 0
-            history = torch.arange(i, i + n_prefix, device=config.device)
-            observed = torch.unsqueeze(history, 0)
-            starts = torch.unsqueeze(history[-1], 0)
-            targets = starts + 1
-
-            # 観測時間の閉塞データを取得する
-            blockage = graph.blockage[:, observation_times]
-
-            lp_graph = graph.update(edges=torch.cat([graph.edges, torch.unsqueeze(blockage[:, 0], dim=1)], dim=1))
-
-            diffusion_graph = (
-                lp_graph if not config.diffusion_self_loops else lp_graph.add_self_loops()
-            )
-
-            predictions, _, rw_weights = model(
-                observations,
-                lp_graph,
-                diffusion_graph,
-                observed=observed,
-                starts=starts,
-                targets=targets,
-                pairwise_node_features=None,
-                number_steps=observation_steps,
-                blockage=blockage
-            )
-
-            # 次の移動先を取得する
-            prediction = predictions.squeeze()
-            if torch.count_nonzero(prediction, 0) != 0:
-                next_node = prediction.multinomial(num_samples=1, replacement=True)
-                next_node = next_node[0]
-
-                # 時間情報を更新する
-                nx_graph = graph.get_nx_graph(predicted_times[-1])
-                if current_node != next_node:
-                    # 探索する
-                    path_nodes = nx.shortest_path(nx_graph, source=current_node.item(),
-                                                  target=next_node.item(), weight='weight')
-                    n_path_nodes = len(path_nodes)
-                    edges = [nx_graph.get_edge_data(path_nodes[i - 1], path_nodes[i])['weight'] for i in
-                             range(1, n_path_nodes)]
-                    travel_distance = sum(edges)
-                    travel_time = travel_distance / config.agent_speed
-                    travel_steps = round(travel_time / config.obs_time_intervals + 0.5)
-
-                node_time = observation_times[-1] + travel_steps
-
-                observation_times = torch.cat([observation_times, node_time.reshape(1)])
-
-                # 予測結果を保存する
-                predicted_nodes.append(next_node)
-                predicted_times.append(node_time)
-
-            # データの保存処理を行う
-            future.observations[trajectory_idx] = observations[-n_prefix:, :]
-            future.observation_times[trajectory_idx] = observation_times[-n_prefix:]
-            future.observation_steps[trajectory_idx] = observation_steps[-n_prefix:]
-
-            future.predicted_nodes[trajectory_idx] = predicted_nodes
-            future.predicted_times[trajectory_idx] = predicted_times
-
-        return None
-
     def compute(
             self,
             model: Model,
@@ -381,7 +267,7 @@ class Evaluator:
                 )
 
                 # 間引いたマスクを生成する
-                observed, starts, targets = deep.sampling_mask(observed, starts, targets, config.num_observed_samples)
+                observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
 
                 # 時間情報を取得
                 node_times = trajectories.times(trajectory_idx)

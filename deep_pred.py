@@ -87,19 +87,6 @@ def evaluate(
     return evaluator.predict(model, graph, trajectories, trajectory_idx, future, end_time)
 
 
-def evaluate_next(
-        model,
-        graph,
-        trajectories,
-        trajectory_idx,
-        evaluator_creator: Callable[[], Evaluator],
-        future
-) -> Evaluator:
-    model.eval()
-    evaluator = evaluator_creator()
-    return evaluator.predict_next(model, graph, trajectories, trajectory_idx, future)
-
-
 def load_prediction(config, dir_name, graph):
     observations_fn = os.path.join(dir_name, "pred_observations.txt")
     observation_time_fn = os.path.join(dir_name, "pred_observation_times.txt")
@@ -212,24 +199,6 @@ def predict(config, start_time, step_time, future, graph, trajectories, model):
     return None
 
 
-def predict_next(config, future, graph, trajectories, model):
-    given_as_target, siblings_nodes = None, None
-
-    def create_evaluator():
-        return Evaluator(
-            graph.n_node,
-            given_as_target=given_as_target,
-            siblings_nodes=siblings_nodes,
-            config=config,
-        )
-
-    # モデルを使った予測
-    for i in tqdm(range(0, len(trajectories), 3)):
-        evaluate_next(model, graph, trajectories, i, create_evaluator, future)
-
-    return None
-
-
 def main_loop():
     start_time = 0
     step_time = 3600
@@ -254,10 +223,6 @@ def main_loop():
     for i in range(start_time, end_time, step_time):
         predict(config, i, step_time, future, graph, trajectories, model)
         write_prediction(config, future, chkpt_dir, graph)
-
-    # future = Future(len(trajectories))
-    # predict_next(config, future, graph, trajectories, model)
-    # write_prediction(config, future, chkpt_dir, graph)
 
     return None
 

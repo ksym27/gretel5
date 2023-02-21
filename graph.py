@@ -835,13 +835,13 @@ class Graph:
         nx_graphs = []
         if blockage_filename is not None and os.path.exists(blockage_filename):
             with open(blockage_filename) as f:
-                _, num_attrs, num_steps = map(int, f.readline().split('\t'))
+                _, num_steps = map(int, f.readline().split('\t'))
                 blockage = torch.zeros(num_edges, num_steps)
 
                 for i, line in enumerate(f.readlines()):
-                    elements = list(map(int, line.split(',')))
+                    elements = list(map(float, line.split(',')))
                     edge_id = elements[0]
-                    features = torch.tensor(elements[num_attrs:])
+                    features = torch.tensor(elements[1:])
                     if edge_id in edge_id_map:
                         blockage[edge_id_map[edge_id]] = features
 

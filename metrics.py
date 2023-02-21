@@ -268,7 +268,7 @@ class Evaluator:
                 )
 
                 # 間引いたマスクを生成する
-                observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
+                # observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
 
                 # 時間情報を取得
                 node_times = trajectories.times(trajectory_idx)

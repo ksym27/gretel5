@@ -82,7 +82,6 @@ class Config(object):
     rw_walk_or_die: bool = True
     print_every: int = 10
 
-    num_observed_samples: int = 10
     obs_time_intervals: int = 1
     checkpoint_file_name: str = "0001.pt"
     max_iteration_prediction: int = 100

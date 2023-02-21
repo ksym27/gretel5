@@ -407,7 +407,7 @@ def train_epoch(
             )
 
             # # 間引いたマスクを生成する
-            observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
+            # observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
             # 時間情報を取得
             node_times = train_trajectories.times(trajectory_idx)
 
@@ -588,10 +588,6 @@ def main():
             create_evaluator,
             dataset="EVAL",
         )
-
-    # import matplotlib.pyplot as plt
-    # graph.plot()
-    # plt.show()
 
     for epoch in range(config.number_epoch):
 

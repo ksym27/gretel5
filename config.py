@@ -91,6 +91,7 @@ class Config(object):
     blockage_time_intervals: int = 6
     start_reverse_edges: int = 0
     start_loop_edges: int = 0
+    num_observed_samples: int = 10
 
     def load_from_file(self, filename: str):
         """Load configuration fiels from a file

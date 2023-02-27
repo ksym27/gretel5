@@ -154,7 +154,6 @@ def load_data(
         n_test = int(test_prop * len(valid_trajectories_idx))
 
         # 念の為、シャッフルしておく。
-        torch.random.manual_seed(20)
         idx = torch.randperm(valid_trajectories_idx.shape[0])
         valid_trajectories_idx = valid_trajectories_idx[idx].view(-1)
 
@@ -405,9 +404,9 @@ def train_epoch(
                 with_interpolation=config.with_interpolation,
                 device=config.device,
             )
-
             # # 間引いたマスクを生成する
-            # observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
+            #observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
+
             # 時間情報を取得
             node_times = train_trajectories.times(trajectory_idx)
 

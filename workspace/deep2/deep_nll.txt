@@ -31,7 +31,7 @@ overfit1 = False
 
 shuffle_samples = true
 number_epoch = 300
-seed = 20
+seed = 50
 patience = 8
 
 [model]
@@ -71,7 +71,7 @@ restore_from_checkpoint = false
 
 [deep]
 obs_time_intervals = 6
-checkpoint_file_name = 0190.pt
+checkpoint_file_name = 0290.pt
 max_iteration_prediction = 500
 prediction_file_name = prediction_result.csv
 agent_speed = 1.11

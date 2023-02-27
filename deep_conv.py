@@ -108,6 +108,7 @@ def convert_sim(config_filename, input_filename, block_filename, output_dir):
     blockage_filename = os.path.join(output_dir, "blockage.txt")
     blockage_filename_ = os.path.join(output_dir, "blockage_.txt")
 
+
     with open(observations_filename, 'w') as f:
         f.write("%d\t1\n" % total_data)
         for i, e in enumerate(data):
@@ -140,7 +141,7 @@ def convert_obs(config_filename, input_dir, output_dir):
     graph, trajectories = load_data2(config, input_dir)
 
     n_edges = graph.n_edge - graph.n_node
-    step = 2
+    step_time = 5
     data = []
     n_total = 0
     for i in range(0, len(trajectories)):
@@ -150,20 +151,20 @@ def convert_obs(config_filename, input_dir, output_dir):
 
         prev_j = 0
         prev_o = None
-        candidate_count = 0
+        prev_time = -1000
         sub = []
         n_observations = len(observations)
         for j in range(n_observations):
             o = torch.argmax(observations[j])
             if j != n_observations - 1:
                 if o != prev_o:
-                    if candidate_count % step == 0:
+                    if times[j] - prev_time >= step_time:
                         paths = edges[prev_j:j].flatten()
                         paths = paths[(paths != -1) & (paths < n_edges)]
                         sub.append((o, times[j], paths))
                         prev_j = j
                         prev_o = o
-                candidate_count += 1
+                        prev_time = times[j]
             else:
                 # 最終ノードはかならず追加する
                 if len(sub) == 0 or sub[-1][0] != o:
@@ -172,12 +173,23 @@ def convert_obs(config_filename, input_dir, output_dir):
                     sub.append((o, times[j], paths))
 
         if len(sub) > 1:
+            node = sub[-1][0]
+            start_time = sub[-1][1] + step_time
+            mask = (graph.senders == node.item()) & (graph.receivers == node.item())
+            edge = torch.where(mask > 0)[0]
+            for j in range(20):
+                time = start_time + step_time * j
+                if time >= 3600:
+                    break
+                sub.append((node, time, edge))
+
             data.append(sub)
             n_total += len(sub)
 
     observations_filename = os.path.join(output_dir, "observation_6sec_s.txt")
     lengths_filename = os.path.join(output_dir, "lengths_s.txt")
     paths_filename = os.path.join(output_dir, "paths_s.txt")
+    paths_filename_ = os.path.join(output_dir, "paths_s_.txt")
     total_paths = 0
     n_max_paths = 0
     with open(observations_filename, 'w') as f1, open(lengths_filename, 'w') as f2:
@@ -200,6 +212,14 @@ def convert_obs(config_filename, input_dir, output_dir):
                     line = "\t".join([str(graph.edge_rid_map[k.item()]) for k in j[2]])
                     f.write("%d\t%s\n" % (i, line))
 
+    with open(paths_filename_, 'w') as f:
+        for i, sub in enumerate(data):
+            for j in sub:
+                if len(j[2]) > 0:
+                    time = j[1].item() * config.obs_time_intervals
+                    for k in j[2]:
+                        f.write("%d\t%d\t%d\n" % (i, time, graph.edge_rid_map[k.item()]))
+
     return None
 
 
@@ -221,7 +241,7 @@ def convert(filename1, filename2):
     pre_node = None
     pre_time = None
     for r in rows:
-        id, node, time, _ = r
+        id, node, time, _, _ = r
         if id != pre_id:
             # 後ろを埋める
             if pre_id is not None:
@@ -260,22 +280,28 @@ def rmse(filename1, filename2):
 
 
 if __name__ == "__main__":
-    # #
-    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/prediction_result.txt"
-    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/prediction_result_alloc.txt"
-    # # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/true_result.txt"
-    # # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/true_result_alloc.txt"
-    # convert(path1, path2)
 
-    # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/result.csv"
-    # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll2/result_rmse.csv"
-    # rmse(path1, path2)
+    no = 4
+    if False:
+        path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll%d/prediction_result.txt" % no
+        path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll%d/prediction_result_alloc.txt" % no
+        # path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll%d/true_result.txt" % no
+        # path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll%d/true_result_alloc.txt" % no
+        convert(path1, path2)
 
-    path0 = "/home/owner/dev/gretel3/workspace/deep2/deep_nll.txt"
+    if True:
+        path1 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll%d/result.csv" % no
+        path2 = "/home/owner/dev/gretel3/workspace/chkpt/deep-nll%d/result_rmse.csv" % no
+        rmse(path1, path2)
+
+    path0 = "/home/owner/dev/gretel3/workspace/deep%d/deep_nll.txt" % no
     path1 = "/home/owner/Desktop/input/traj_pos98_0.1分間隔_5_sep_fin.csv"
     path2 = "/home/owner/Desktop/input/blockage_new_20220227.csv"
     path3 = "/home/owner/Desktop/input/r/"
-    # convert_sim(path0, path1, path2, path3)
-
     path4 = "/home/owner/Desktop/input/r/"
-    convert_obs(path0, path3, path4)
+
+    if False:
+        convert_sim(path0, path1, path2, path3)
+
+    if False:
+        convert_obs(path0, path3, path4)

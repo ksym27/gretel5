@@ -95,7 +95,7 @@ def load_prediction(config, dir_name, graph):
     predicted_times_fn = os.path.join(dir_name, "pred_times.txt")
     condition_fn = os.path.join(dir_name, "pred_condition.txt")
 
-    future = Future(1)
+    future = Future(1, graph.n_edge)
 
     with open(observations_fn, "r") as f:
         reader = csv.reader(f, delimiter='\t')
@@ -129,14 +129,15 @@ def load_prediction(config, dir_name, graph):
     return future
 
 
-def write_prediction(config, future, dir_name, graph):
+def write_prediction(config, future, dir_name, graph, step):
     observations_fn = os.path.join(dir_name, "pred_observations.txt")
     observation_time_fn = os.path.join(dir_name, "pred_observation_times.txt")
     observation_steps_fn = os.path.join(dir_name, "pred_observation_steps.txt")
     predicted_nodes_fn = os.path.join(dir_name, "pred_nodes.txt")
     predicted_times_fn = os.path.join(dir_name, "pred_times.txt")
-    condition_fn = os.path.join(dir_name, "pred_condition.txt")
+    condition_fn = os.path.join(dir_name, "pred_condition_%d.txt" % step)
     trajectory_fn = os.path.join(dir_name, "prediction_result.txt")
+    edges_fn = os.path.join(dir_name, "prediction_edges_%d.txt" % step)
 
     with open(observations_fn, 'w') as f:
         for i, l in enumerate(future.observations):
@@ -176,7 +177,13 @@ def write_prediction(config, future, dir_name, graph):
                 time = future.predicted_times[i][j].item()
                 node_id = graph.node_rid_map[node]
                 time = time * config.obs_time_intervals
-                f.write("{}\t{}\t{}\t{}\n".format(i, node_id, time, condition))
+                f.write("{}\t{}\t{}\t{}\t{}\n".format(i, node_id, time, condition, j))
+
+    with open(edges_fn, "w") as f:
+        for i, count in enumerate(future.paths):
+            edge_id = graph.edge_rid_map[i]
+            f.write("{}\t{}\t{}\n".format(edge_id, step, count))
+
     return None
 
 
@@ -219,10 +226,12 @@ def main_loop():
     graph, trajectories, model = pre_process(config)
 
     # loop
-    future = Future(len(trajectories))
+    future = Future(len(trajectories), graph.n_edge)
     for i in range(start_time, end_time, step_time):
         predict(config, i, step_time, future, graph, trajectories, model)
-        write_prediction(config, future, chkpt_dir, graph)
+        write_prediction(config, future, chkpt_dir, graph, i+step_time)
+
+        future.paths = [0] * graph.n_edge
 
     return None
 

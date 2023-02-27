@@ -12,7 +12,7 @@ from utils import generate_masks, sampling_mask
 from trajectories import Trajectories
 from graph import Graph
 from model import Model
-
+import time
 
 class Metric:
     """Simple Metric aggregation class"""
@@ -125,8 +125,11 @@ class Evaluator:
                 predicted_nodes = future.predicted_nodes[trajectory_idx]
                 predicted_times = future.predicted_times[trajectory_idx]
 
+                # condition
+                future.condition[trajectory_idx] = 1
+
             # ステップ数を登録する
-            n_next_steps = 3
+            n_next_steps = 10
             observation_steps[-1] = n_next_steps
 
             # ここからループさせる。
@@ -151,6 +154,7 @@ class Evaluator:
                     lp_graph if not config.diffusion_self_loops else lp_graph.add_self_loops()
                 )
 
+                start = time.time()
                 predictions, _, rw_weights = model(
                     observations,
                     lp_graph,
@@ -170,13 +174,14 @@ class Evaluator:
                     next_node = prediction.multinomial(num_samples=1, replacement=True)
                     next_node = next_node[0]
 
-                # 時間情報を更新する
-                travel_steps = 50
-                nx_graph = graph.get_nx_graph(predicted_times[-1])
-
-                if current_node == graph.edge_rid_map[33554]:
+                if next_node == graph.node_id_map[-27089]:
                     a = 1
 
+
+                # 時間情報を更新する
+                travel_steps = 60
+                nx_graph = graph.get_nx_graph(predicted_times[-1])
+                goal_flag = False
                 if current_node != next_node:
                     # 探索する
                     path_nodes = nx.shortest_path(nx_graph, source=current_node.item(),
@@ -193,6 +198,19 @@ class Evaluator:
                     # 距離から時間を計算する
                     travel_time = travel_distance / config.agent_speed
                     travel_steps = round(travel_time / config.obs_time_intervals + 0.5)
+
+                    # リンク交通量用
+                    edge_ids = [nx_graph.get_edge_data(path_nodes[i - 1], path_nodes[i])['id'] for i in
+                                range(1, n_path_nodes)]
+                    for edge_id in edge_ids:
+                        future.paths[edge_id] += 1
+
+                    # 避難所を通過するかどうか
+                    for node in path_nodes:
+                        if graph.nodes[node][0] > 0:
+                            goal_flag = True
+                            next_node = torch.tensor(node, device=config.device)
+                            break
 
                 # 時間を登録する
                 node_time = observation_times[-1] + travel_steps
@@ -214,17 +232,19 @@ class Evaluator:
                 # 観測データを結合する
                 observations = torch.cat((observations, predicted_node))
 
-                # # ゴールに到着したかどうか確認する
-                # if graph.node[next_node][0] != 0:
-                #     future.condition[trajectory_idx] = -1
-                #     break
+                # ゴールに到着したかどうか確認する
+                if goal_flag:
+                    future.condition[trajectory_idx] = -1
+                    break
 
                 # 何回も同じノードを通過する場合は終わらせる
                 check_nodes = torch.unique_consecutive(torch.tensor(predicted_nodes, device=config.device))
                 _, counts = torch.unique(check_nodes, return_counts=True)
                 if config.max_node_duplication < torch.max(counts):
-                    future.condition[trajectory_idx] = -1
+                    future.condition[trajectory_idx] = -2
                     break
+
+                future.condition[trajectory_idx] = 2
 
             # データの保存処理を行う（処理用）
             future.observations[trajectory_idx] = observations[-n_prefix:, :]
@@ -268,10 +288,11 @@ class Evaluator:
                 )
 
                 # 間引いたマスクを生成する
-                # observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
+                #observed, starts, targets = sampling_mask(observed, starts, targets, config.num_observed_samples)
 
                 # 時間情報を取得
                 node_times = trajectories.times(trajectory_idx)
+
                 # 観測時間の閉塞データを取得する
                 blockage = graph.blockage[:, node_times]
 
